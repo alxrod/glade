@@ -5,6 +5,7 @@ struct JSONLDocument {
     let lines: [JSONLLine]
     let fileName: String
     let tableColumns: [JSONLTableColumn]
+    let compactTimestampCells: [String: [UUID: String]]
 
     var lineCount: Int { lines.count }
 
@@ -31,7 +32,8 @@ struct JSONLDocument {
             fileURL: url,
             lines: lines,
             fileName: url.lastPathComponent,
-            tableColumns: JSONLTableColumn.columns(for: lines)
+            tableColumns: JSONLTableColumn.columns(for: lines),
+            compactTimestampCells: JSONLTimestampDisplay.compactCells(in: lines)
         )
     }
 }

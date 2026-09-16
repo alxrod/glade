@@ -12,6 +12,8 @@ A native macOS workspace for exploring JSONL and Markdown files. Glade is a fork
 
 Columns are ranked when a document opens: timestamp first, then readable prose (longer text wins ties), commands and paths, numbers, and other values. Fields populated in fewer than a quarter of records move to the right, except timestamps. The heuristic examines nested content too, so a message object with readable text can take priority over technical metadata. The line-number gutter stays at the edge, and records retain their file order.
 
+Timestamp cells omit leading date and time components shared across the file. A shared date disappears; a shared hour or minute reduces the display further, using `m` and `s` for clarity. Fractional seconds retain their original precision. Formatting stays stable while filtering, and the cell tooltip and line inspector show the original timestamp. Mixed timezones or timestamp precision keep their full context.
+
 Search filters records without changing the table's columns. Markdown files have a rendered view and a searchable outline beneath the file list. Both formats support editing, saving, drag and drop, and zoom. Each macOS Space can have its own workspace.
 
 Use **Search this line** at the top of the inspector to search that record independently. Matches are highlighted and counted; unrelated fields are hidden while parent keys and original array indices remain visible. Matching a container key reveals its full value. Clear the search (or press Escape in the field) to restore the full record. The inspector query stays with each file as you select different rows.

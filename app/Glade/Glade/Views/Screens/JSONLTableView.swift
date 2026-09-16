@@ -32,6 +32,7 @@ struct JSONLTableView: View {
             JSONLRecordsTable(
                 rows: rows,
                 columns: viewModel.document?.tableColumns ?? [.lineNumber],
+                compactTimestampCells: viewModel.document?.compactTimestampCells ?? [:],
                 selectedLineID: $viewModel.selectedLineID,
                 zoomLevel: zoomLevel,
                 onInspect: { viewModel.inspectLine($0) },
@@ -79,6 +80,7 @@ struct JSONLTableView: View {
 struct JSONLRecordsTable: NSViewRepresentable {
     let rows: [JSONLLine]
     let columns: [JSONLTableColumn]
+    let compactTimestampCells: [String: [UUID: String]]
     @Binding var selectedLineID: UUID?
     let zoomLevel: Double
     let onInspect: (JSONLLine) -> Void
@@ -144,6 +146,7 @@ struct JSONLRecordsTable: NSViewRepresentable {
                 table.addTableColumn(native)
             }
         }
+        // Re-parsing creates new line IDs along with the timestamp presentation.
         if columnsChanged || rowsChanged || zoomChanged { table.reloadData() }
 
         let selectedRow = rows.firstIndex { $0.id == selectedLineID }
@@ -188,13 +191,14 @@ struct JSONLRecordsTable: NSViewRepresentable {
                 ])
             }
             let line = rows[row]
-            let text = column.text(for: line)
+            let rawText = column.text(for: line)
+            let text = parent.compactTimestampCells[column.identifier]?[line.id] ?? rawText
             cell.textField?.stringValue = text
             cell.textField?.font = .monospacedSystemFont(ofSize: 12 * parent.zoomLevel, weight: .regular)
             cell.textField?.textColor = column == .lineNumber ? .secondaryLabelColor : .labelColor
             cell.textField?.alignment = column == .lineNumber ? .right : .left
-            cell.textField?.setAccessibilityLabel("\(column.title): \(text)")
-            cell.toolTip = column == .lineNumber ? line.parseError : text
+            cell.textField?.setAccessibilityLabel("\(column.title): \(rawText)")
+            cell.toolTip = column == .lineNumber ? line.parseError : rawText
             return cell
         }
 
