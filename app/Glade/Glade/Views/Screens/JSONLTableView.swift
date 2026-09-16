@@ -1,12 +1,15 @@
 import AppKit
 import SwiftUI
+import OSLog
 
 struct JSONLTableView: View {
     @Bindable var viewModel: GladeViewModel
+    @State private var columnOrderStore = JSONLColumnOrderStore.shared
     var zoomLevel: Double = 1
 
     var body: some View {
         let rows = viewModel.filteredLines
+        let defaultColumns = viewModel.document?.tableColumns ?? [.lineNumber]
         VStack(spacing: 0) {
             HStack(spacing: 8) {
                 Image(systemName: "magnifyingglass")
@@ -31,12 +34,15 @@ struct JSONLTableView: View {
 
             JSONLRecordsTable(
                 rows: rows,
-                columns: viewModel.document?.tableColumns ?? [.lineNumber],
+                columns: columnOrderStore.columns(for: defaultColumns),
                 compactTimestampCells: viewModel.document?.compactTimestampCells ?? [:],
                 selectedLineID: $viewModel.selectedLineID,
                 zoomLevel: zoomLevel,
                 onInspect: { viewModel.inspectLine($0) },
-                onCloseInspector: { viewModel.isInspectorPresented = false }
+                onCloseInspector: { viewModel.isInspectorPresented = false },
+                hasSavedColumnOrder: columnOrderStore.hasSavedOrder(for: defaultColumns),
+                onReorderColumns: { columnOrderStore.save($0, for: defaultColumns) },
+                onResetColumnOrder: { columnOrderStore.reset(for: defaultColumns) }
             )
             .overlay {
                 if rows.isEmpty {
@@ -85,6 +91,9 @@ struct JSONLRecordsTable: NSViewRepresentable {
     let zoomLevel: Double
     let onInspect: (JSONLLine) -> Void
     let onCloseInspector: () -> Void
+    let hasSavedColumnOrder: Bool
+    let onReorderColumns: ([JSONLTableColumn]) -> Void
+    let onResetColumnOrder: () -> Void
 
     func makeCoordinator() -> Coordinator { Coordinator(parent: self) }
 
@@ -96,7 +105,7 @@ struct JSONLRecordsTable: NSViewRepresentable {
         table.doubleAction = #selector(Coordinator.inspectClickedRow(_:))
         table.allowsMultipleSelection = false
         table.allowsEmptySelection = true
-        table.allowsColumnReordering = false
+        table.allowsColumnReordering = true
         table.allowsColumnResizing = true
         table.columnAutoresizingStyle = .noColumnAutoresizing
         table.usesAlternatingRowBackgroundColors = true
@@ -110,6 +119,14 @@ struct JSONLRecordsTable: NSViewRepresentable {
             coordinator?.inspect(row: table.selectedRow)
         }
         table.onCloseInspector = onCloseInspector
+        table.headerView?.toolTip = String(localized: "Drag property headers to rearrange columns. Right-click to reset their order.")
+        let headerMenu = NSMenu()
+        headerMenu.autoenablesItems = false
+        let resetItem = NSMenuItem(title: String(localized: "Reset Column Order"),
+                                  action: #selector(Coordinator.resetColumnOrder), keyEquivalent: "")
+        resetItem.target = context.coordinator
+        headerMenu.addItem(resetItem)
+        table.headerView?.menu = headerMenu
 
         let scroll = NSScrollView()
         scroll.hasVerticalScroller = true
@@ -132,11 +149,15 @@ struct JSONLRecordsTable: NSViewRepresentable {
         coordinator.rows = rows
         coordinator.columns = columns
         table.onCloseInspector = onCloseInspector
+        table.headerView?.menu?.items.first?.isEnabled = hasSavedColumnOrder
         table.rowHeight = max(24, 28 * zoomLevel)
 
         if columnsChanged {
-            for column in table.tableColumns { table.removeTableColumn(column) }
-            for column in columns {
+            let identifiers = Set(columns.map(\.identifier))
+            for native in table.tableColumns where !identifiers.contains(native.identifier.rawValue) {
+                table.removeTableColumn(native)
+            }
+            for column in columns where !table.tableColumns.contains(where: { $0.identifier.rawValue == column.identifier }) {
                 let native = NSTableColumn(identifier: NSUserInterfaceItemIdentifier(column.identifier))
                 native.title = column == .lineNumber ? "" : column.title
                 native.minWidth = column == .lineNumber ? 56 : 90
@@ -144,6 +165,12 @@ struct JSONLRecordsTable: NSViewRepresentable {
                 native.maxWidth = column == .lineNumber ? 120 : 1400
                 native.resizingMask = .userResizingMask
                 table.addTableColumn(native)
+            }
+            // Reuse native columns so widths survive a saved-order update from
+            // another file or window. Programmatic moves must never save defaults.
+            for (index, column) in columns.enumerated() {
+                let current = table.column(withIdentifier: NSUserInterfaceItemIdentifier(column.identifier))
+                if current != index { table.moveColumn(current, toColumn: index) }
             }
         }
         // Re-parsing creates new line IDs along with the timestamp presentation.
@@ -205,6 +232,32 @@ struct JSONLRecordsTable: NSViewRepresentable {
         func tableViewSelectionDidChange(_ notification: Notification) {
             guard !isUpdating, let table = notification.object as? NSTableView else { return }
             parent.selectedLineID = rows.indices.contains(table.selectedRow) ? rows[table.selectedRow].id : nil
+        }
+
+        func tableView(_ tableView: NSTableView, shouldReorderColumn columnIndex: Int, toColumn newColumnIndex: Int) -> Bool {
+            Logger(subsystem: "net.alexbrodriguez.glade", category: "ColumnOrdering").debug("Column reorder request from \(columnIndex) to \(newColumnIndex), available columns \(self.columns.count)")
+            guard columns.indices.contains(columnIndex), case .field = columns[columnIndex] else { return false }
+            // AppKit first asks whether a drag may start, with destination -1.
+            if newColumnIndex == -1 { return true }
+            guard columns.indices.contains(newColumnIndex) else { return false }
+            // The line gutter and optional raw-content column are not JSON keys.
+            if case .field = columns[newColumnIndex] { return true }
+            return false
+        }
+
+        func tableViewColumnDidMove(_ notification: Notification) {
+            Logger(subsystem: "net.alexbrodriguez.glade", category: "ColumnOrdering").debug("Column moved; applying programmatic update: \(self.isUpdating)")
+            guard !isUpdating, let table = notification.object as? NSTableView else { return }
+            let reordered = table.tableColumns.compactMap { native in
+                columns.first { $0.identifier == native.identifier.rawValue }
+            }
+            guard reordered.count == columns.count, reordered != columns else { return }
+            columns = reordered
+            parent.onReorderColumns(reordered)
+        }
+
+        @objc func resetColumnOrder() {
+            parent.onResetColumnOrder()
         }
 
         @objc func inspectClickedRow(_ sender: NSTableView) {

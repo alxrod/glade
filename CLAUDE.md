@@ -26,6 +26,7 @@ app/Glade/
     Models/
       JSONLDocument.swift        # File parsing, line collection, table schema
       JSONLColumnOrdering.swift  # Document-wide timestamp/content/sparsity ranking
+      JSONLColumnOrderStore.swift # App-wide preferred ordering for exact sets of JSON keys
       JSONLLine.swift            # Individual line with parsed JSON
       JSONValue.swift            # Recursive JSON value enum
       MarkdownDocument.swift     # Markdown file parsing, heading extraction, block parser
@@ -100,6 +101,7 @@ Retain both the updater controller and its delegate. Debug disables automatic ch
 - **`.toolbar(removing: .sidebarToggle)`** — Sidebar is always visible, no collapse
 - **File sidebar + table + inspector** — `NavigationSplitView` owns the file list; `HSplitView` contains the JSONL table and optional resizable inspector. The inspector reuses `DetailView`; its visibility is stored per file. `NSTableView` owns selection, keyboard navigation, and double-click activation. The table schema is derived once from all document lines, never just search results.
 - **Column ranking is local and deterministic** — Assess every object record while parsing off the main thread. Timestamp wins even when sparse; other columns populated in fewer than a quarter of records go last. Rank readable language by prevalence and approximate word count, then technical strings, numbers, and other values. Bounded recursive analysis includes text inside objects and arrays without copying it into table cells. Final ties use the field name, never dictionary iteration order.
+- **User column order overrides ranking** — A shared observable `JSONLColumnOrderStore` persists manual drags in local UserDefaults. Its identity is a JSON-encoded sorted union of top-level keys across the entire document, independent of paths, values, filters, and incidental raw-content rows. Reads never save heuristic defaults. The line gutter and synthetic raw-content column remain fixed; programmatic native column moves do not write preferences. Reuse native columns to preserve widths when another window updates the same schema.
 - **`@State` intermediary for search binding** — Direct `@Observable` binding to `.searchable` causes crashes on macOS 14.x
 - **File-open events via `NSAppleEventManager`, not `.onOpenURL`** — `CFBundleDocumentTypes` is declared in Info.plist (so the app registers as a viewer for `.jsonl`/`.md` in Finder). On macOS 26 SDK, AppKit's `NSDocumentController` routes those file-open Apple Events and spawns empty "ghost" windows when the SwiftUI scene count doesn't match. `AppDelegate.applicationWillFinishLaunching` registers a custom `kAEOpenDocuments` handler that runs BEFORE `NSDocumentController`, extracts URLs, and posts them via `.openFileURL` notification. SwiftUI's `.onOpenURL` is NOT used.
 - **Per-Space windows via programmatic `NSHostingController<TabbedRootView>`** — The first window is a SwiftUI `Window(id: "main")` scene. Subsequent windows (one per macOS Space) are created in AppKit when a file is opened on a Space that has no existing Glade window. Each window owns its own `TabManager`.

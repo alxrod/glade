@@ -10,7 +10,7 @@ let package = Package(
             name: "GladeCore",
             path: "app/Glade/Glade/Models",
             exclude: ["MarkdownDocument.swift", "MarkdownHeading.swift"],
-            sources: ["JSONValue.swift", "JSONLLine.swift", "JSONLDocument.swift", "JSONLColumnOrdering.swift", "JSONLineSearch.swift", "JSONLTimestampDisplay.swift", "UpdateChannel.swift"]
+            sources: ["JSONValue.swift", "JSONLLine.swift", "JSONLDocument.swift", "JSONLColumnOrdering.swift", "JSONLColumnOrderStore.swift", "JSONLineSearch.swift", "JSONLTimestampDisplay.swift", "UpdateChannel.swift"]
         ),
         .testTarget(name: "GladeCoreTests", dependencies: ["GladeCore"]),
     ]

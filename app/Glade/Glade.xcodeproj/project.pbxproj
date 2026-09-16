@@ -32,6 +32,7 @@
 		AA000025 /* JSONLColumnOrdering.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA100025 /* JSONLColumnOrdering.swift */; };
 		AA000026 /* JSONLineSearch.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA100026 /* JSONLineSearch.swift */; };
 		AA000027 /* JSONLTimestampDisplay.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA100027 /* JSONLTimestampDisplay.swift */; };
+		AA000028 /* JSONLColumnOrderStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA100028 /* JSONLColumnOrderStore.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -61,6 +62,7 @@
 		AA100025 /* JSONLColumnOrdering.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JSONLColumnOrdering.swift; sourceTree = "<group>"; };
 		AA100026 /* JSONLineSearch.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JSONLineSearch.swift; sourceTree = "<group>"; };
 		AA100027 /* JSONLTimestampDisplay.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JSONLTimestampDisplay.swift; sourceTree = "<group>"; };
+		AA100028 /* JSONLColumnOrderStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JSONLColumnOrderStore.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -126,6 +128,7 @@
 				AA100025 /* JSONLColumnOrdering.swift */,
 				AA100026 /* JSONLineSearch.swift */,
 				AA100027 /* JSONLTimestampDisplay.swift */,
+				AA100028 /* JSONLColumnOrderStore.swift */,
 				AA100016 /* MarkdownHeading.swift */,
 				AA100017 /* MarkdownDocument.swift */,
 			);
@@ -258,6 +261,7 @@
 				AA000025 /* JSONLColumnOrdering.swift in Sources */,
 				AA000026 /* JSONLineSearch.swift in Sources */,
 				AA000027 /* JSONLTimestampDisplay.swift in Sources */,
+				AA000028 /* JSONLColumnOrderStore.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
