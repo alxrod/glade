@@ -84,6 +84,8 @@ Retain both the updater controller and its delegate. Debug disables automatic ch
 
 ## Quality Gates
 
+Glade does not use or require CI. Run relevant checks locally; release signing and notarization are also local. GitHub Pages deployment only publishes the Sparkle feed.
+
 | Gate | Requirement |
 |-|-|
 | **Build** | `xcodebuild` succeeds |
