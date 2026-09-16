@@ -14,6 +14,8 @@ Columns are ranked when a document opens: timestamp first, then readable prose (
 
 Drag JSON property headers to rearrange columns. Glade saves that order in its local app preferences and applies it to every file with the exact same set of top-level keys, across windows and app launches. Matching uses all rows in the file and ignores filenames, values, and filters. Your saved order takes precedence over automatic ranking; right-click a header and choose **Reset Column Order** to restore automatic ranking for that key set. The line-number gutter and optional raw-content column stay at the edges.
 
+Column widths and hidden columns are remembered for that same key set. Right-click a cell and choose **Hide Column** to remove its column from the spreadsheet. Use **Show Hidden Columns** above the table to restore one column or all of them, with their saved widths and positions. Hidden fields still appear in the full-line inspector and remain searchable. The line-number gutter always stays visible, even if every data column is hidden.
+
 Timestamp cells omit shared leading parts only in complete groups: the entire date, then hour and minute together, then whole seconds. Hours and minutes always stay together; differing dates remain fully visible. Fractional seconds retain their original precision. Formatting stays stable while filtering, and the cell tooltip and line inspector show the original timestamp. Mixed timezones or timestamp precision keep their full context.
 
 Search filters records without changing the table's columns. Markdown files have a rendered view and a searchable outline beneath the file list. Both formats support editing, saving, drag and drop, and zoom. Each macOS Space can have its own workspace.

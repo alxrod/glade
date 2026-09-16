@@ -60,6 +60,10 @@ enum JSONLTableColumn: Equatable {
         }
     }
 
+    var minimumWidth: Double { self == .lineNumber ? 56 : 90 }
+    var defaultWidth: Double { self == .lineNumber ? 64 : (self == .value ? 340 : 180) }
+    var maximumWidth: Double { self == .lineNumber ? 120 : 1400 }
+
     static func columns(for lines: [JSONLLine]) -> [JSONLTableColumn] {
         JSONLColumnOrdering.columns(for: lines)
     }

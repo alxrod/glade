@@ -4,12 +4,13 @@ import OSLog
 
 struct JSONLTableView: View {
     @Bindable var viewModel: GladeViewModel
-    @State private var columnOrderStore = JSONLColumnOrderStore.shared
+    @State private var columnLayoutStore = JSONLColumnLayoutStore.shared
     var zoomLevel: Double = 1
 
     var body: some View {
         let rows = viewModel.filteredLines
         let defaultColumns = viewModel.document?.tableColumns ?? [.lineNumber]
+        let hiddenColumns = columnLayoutStore.hiddenColumns(for: defaultColumns)
         VStack(spacing: 0) {
             HStack(spacing: 8) {
                 Image(systemName: "magnifyingglass")
@@ -27,6 +28,22 @@ struct JSONLTableView: View {
                     .buttonStyle(.plain)
                     .accessibilityLabel("Clear search")
                 }
+                Menu {
+                    Button("Show All Hidden Columns") { columnLayoutStore.showAll(in: defaultColumns) }
+                    Divider()
+                    ForEach(hiddenColumns, id: \.identifier) { column in
+                        Button {
+                            columnLayoutStore.show(column, in: defaultColumns)
+                        } label: {
+                            Text(verbatim: column.title)
+                        }
+                    }
+                } label: {
+                    Label("Show Hidden Columns (\(hiddenColumns.count))", systemImage: "eye")
+                }
+                .fixedSize()
+                .disabled(hiddenColumns.isEmpty)
+                .help("Restore individual hidden columns or show them all")
             }
             .padding(10)
             .background(Color(nsColor: .controlBackgroundColor))
@@ -34,15 +51,19 @@ struct JSONLTableView: View {
 
             JSONLRecordsTable(
                 rows: rows,
-                columns: columnOrderStore.columns(for: defaultColumns),
+                columns: columnLayoutStore.columns(for: defaultColumns),
+                columnWidths: columnLayoutStore.widths(for: defaultColumns),
+                hiddenColumnIDs: Set(hiddenColumns.map(\.identifier)),
                 compactTimestampCells: viewModel.document?.compactTimestampCells ?? [:],
                 selectedLineID: $viewModel.selectedLineID,
                 zoomLevel: zoomLevel,
                 onInspect: { viewModel.inspectLine($0) },
                 onCloseInspector: { viewModel.isInspectorPresented = false },
-                hasSavedColumnOrder: columnOrderStore.hasSavedOrder(for: defaultColumns),
-                onReorderColumns: { columnOrderStore.save($0, for: defaultColumns) },
-                onResetColumnOrder: { columnOrderStore.reset(for: defaultColumns) }
+                hasSavedColumnOrder: columnLayoutStore.hasSavedOrder(for: defaultColumns),
+                onReorderColumns: { columnLayoutStore.save($0, for: defaultColumns) },
+                onResetColumnOrder: { columnLayoutStore.reset(for: defaultColumns) },
+                onResizeColumn: { columnLayoutStore.saveWidth($1, for: $0, in: defaultColumns) },
+                onHideColumn: { columnLayoutStore.hide($0, in: defaultColumns) }
             )
             .overlay {
                 if rows.isEmpty {
@@ -86,6 +107,8 @@ struct JSONLTableView: View {
 struct JSONLRecordsTable: NSViewRepresentable {
     let rows: [JSONLLine]
     let columns: [JSONLTableColumn]
+    let columnWidths: [String: Double]
+    let hiddenColumnIDs: Set<String>
     let compactTimestampCells: [String: [UUID: String]]
     @Binding var selectedLineID: UUID?
     let zoomLevel: Double
@@ -94,6 +117,8 @@ struct JSONLRecordsTable: NSViewRepresentable {
     let hasSavedColumnOrder: Bool
     let onReorderColumns: ([JSONLTableColumn]) -> Void
     let onResetColumnOrder: () -> Void
+    let onResizeColumn: (JSONLTableColumn, Double) -> Void
+    let onHideColumn: (JSONLTableColumn) -> Void
 
     func makeCoordinator() -> Coordinator { Coordinator(parent: self) }
 
@@ -119,6 +144,9 @@ struct JSONLRecordsTable: NSViewRepresentable {
             coordinator?.inspect(row: table.selectedRow)
         }
         table.onCloseInspector = onCloseInspector
+        table.cellContextMenu = { [weak coordinator = context.coordinator] columnIndex in
+            coordinator?.menu(forColumnAt: columnIndex)
+        }
         table.headerView?.toolTip = String(localized: "Drag property headers to rearrange columns. Right-click to reset their order.")
         let headerMenu = NSMenu()
         headerMenu.autoenablesItems = false
@@ -143,6 +171,7 @@ struct JSONLRecordsTable: NSViewRepresentable {
         let columnsChanged = coordinator.columns != columns
         let rowsChanged = coordinator.rows.map(\.id) != rows.map(\.id)
         let zoomChanged = coordinator.parent.zoomLevel != zoomLevel
+        let visibilityChanged = coordinator.parent.hiddenColumnIDs != hiddenColumnIDs
         coordinator.parent = self
         coordinator.isUpdating = true
         defer { coordinator.isUpdating = false }
@@ -160,9 +189,9 @@ struct JSONLRecordsTable: NSViewRepresentable {
             for column in columns where !table.tableColumns.contains(where: { $0.identifier.rawValue == column.identifier }) {
                 let native = NSTableColumn(identifier: NSUserInterfaceItemIdentifier(column.identifier))
                 native.title = column == .lineNumber ? "" : column.title
-                native.minWidth = column == .lineNumber ? 56 : 90
-                native.width = column == .lineNumber ? 64 : (column == .value ? 340 : 180)
-                native.maxWidth = column == .lineNumber ? 120 : 1400
+                native.minWidth = column.minimumWidth
+                native.maxWidth = column.maximumWidth
+                native.width = columnWidths[column.identifier] ?? column.defaultWidth
                 native.resizingMask = .userResizingMask
                 table.addTableColumn(native)
             }
@@ -173,8 +202,15 @@ struct JSONLRecordsTable: NSViewRepresentable {
                 if current != index { table.moveColumn(current, toColumn: index) }
             }
         }
+        for column in columns {
+            guard let native = table.tableColumn(withIdentifier: NSUserInterfaceItemIdentifier(column.identifier)) else { continue }
+            let width = columnWidths[column.identifier] ?? column.defaultWidth
+            if abs(native.width - width) > 0.5 { native.width = width }
+            let isHidden = hiddenColumnIDs.contains(column.identifier)
+            if native.isHidden != isHidden { native.isHidden = isHidden }
+        }
         // Re-parsing creates new line IDs along with the timestamp presentation.
-        if columnsChanged || rowsChanged || zoomChanged { table.reloadData() }
+        if columnsChanged || rowsChanged || zoomChanged || visibilityChanged { table.reloadData() }
 
         let selectedRow = rows.firstIndex { $0.id == selectedLineID }
         let indexes = selectedRow.map { IndexSet(integer: $0) } ?? IndexSet()
@@ -256,6 +292,31 @@ struct JSONLRecordsTable: NSViewRepresentable {
             parent.onReorderColumns(reordered)
         }
 
+        func tableViewColumnDidResize(_ notification: Notification) {
+            guard !isUpdating,
+                  let native = notification.userInfo?["NSTableColumn"] as? NSTableColumn,
+                  let column = columns.first(where: { $0.identifier == native.identifier.rawValue }) else { return }
+            parent.onResizeColumn(column, native.width)
+        }
+
+        func menu(forColumnAt index: Int) -> NSMenu? {
+            guard columns.indices.contains(index), columns[index] != .lineNumber else { return nil }
+            let column = columns[index]
+            let menu = NSMenu()
+            let item = NSMenuItem(title: String(localized: "Hide Column “\(column.title)”"),
+                                  action: #selector(hideColumn(_:)), keyEquivalent: "")
+            item.target = self
+            item.representedObject = column.identifier
+            menu.addItem(item)
+            return menu
+        }
+
+        @objc func hideColumn(_ sender: NSMenuItem) {
+            guard let identifier = sender.representedObject as? String,
+                  let column = columns.first(where: { $0.identifier == identifier }) else { return }
+            parent.onHideColumn(column)
+        }
+
         @objc func resetColumnOrder() {
             parent.onResetColumnOrder()
         }
@@ -274,6 +335,13 @@ struct JSONLRecordsTable: NSViewRepresentable {
 final class RecordsTableView: NSTableView {
     var onInspectSelection: (() -> Void)?
     var onCloseInspector: (() -> Void)?
+    var cellContextMenu: ((Int) -> NSMenu?)?
+
+    override func menu(for event: NSEvent) -> NSMenu? {
+        let location = convert(event.locationInWindow, from: nil)
+        guard row(at: location) >= 0 else { return super.menu(for: event) }
+        return cellContextMenu?(column(at: location)) ?? super.menu(for: event)
+    }
 
     override func keyDown(with event: NSEvent) {
         switch event.keyCode {
