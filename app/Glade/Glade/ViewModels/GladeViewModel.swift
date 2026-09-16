@@ -33,7 +33,8 @@ final class GladeViewModel: Identifiable {
     var fileType: FileType = .jsonl
     var document: JSONLDocument?
     var markdownDocument: MarkdownDocument?
-    var selectedLineID: UUID?
+    private(set) var selectedLineID: UUID?
+    private(set) var selectedLineIDs: Set<UUID> = []
     var isInspectorPresented = false
     var selectedHeadingID: UUID?
     var scrollTarget: ScrollTarget?
@@ -85,9 +86,9 @@ final class GladeViewModel: Identifiable {
         return fileMetadata.rowTags(for: fileURL, lines: lines)
     }
 
-    func tagLine(_ line: JSONLLine, color: JSONLRowTagColor?) {
+    func tagLines(_ lines: [JSONLLine], color: JSONLRowTagColor?) {
         guard let fileURL else { return }
-        fileMetadata.setTag(color, for: line, in: fileURL)
+        fileMetadata.setTag(color, for: lines, in: fileURL)
     }
 
     var tableQuery: JSONLQuery {
@@ -276,7 +277,7 @@ final class GladeViewModel: Identifiable {
                 self.fileURL = url
                 self.originalText = rawContent
                 self.displayName = url.lastPathComponent
-                self.selectedLineID = doc.lines.first?.id
+                self.selectLine(doc.lines.first)
                 self.isLoading = false
             }
         }
@@ -368,21 +369,39 @@ final class GladeViewModel: Identifiable {
             self.document = doc
             if let num = previousLineNumber,
                let restored = doc.lines.first(where: { $0.lineNumber == num }) {
-                self.selectedLineID = restored.id
+                self.selectLine(restored)
             } else {
-                self.selectedLineID = doc.lines.first?.id
+                self.selectLine(doc.lines.first)
             }
         case .markdown(let doc):
             self.markdownDocument = doc
         }
     }
 
-    func selectLine(_ line: JSONLLine) {
-        selectedLineID = line.id
+    func selectLine(_ line: JSONLLine?) {
+        selectLines(withIDs: line.map { [$0.id] } ?? [], primaryID: line?.id)
+    }
+
+    func selectLines(withIDs ids: Set<UUID>, primaryID: UUID?) {
+        selectedLineIDs = ids
+        if let primaryID, ids.contains(primaryID) {
+            selectedLineID = primaryID
+        } else {
+            selectedLineID = lines.first(where: { ids.contains($0.id) })?.id
+        }
+    }
+
+    func reconcileSelection(with visibleLines: [JSONLLine]) {
+        let remaining = selectedLineIDs.intersection(visibleLines.map(\.id))
+        if remaining.isEmpty {
+            selectLine(visibleLines.first)
+        } else {
+            selectLines(withIDs: remaining, primaryID: selectedLineID)
+        }
     }
 
     func inspectLine(_ line: JSONLLine) {
-        selectedLineID = line.id
+        selectLine(line)
         isInspectorPresented = true
     }
 
@@ -391,10 +410,10 @@ final class GladeViewModel: Identifiable {
     func jumpToLine(_ lineNumber: Int) {
         // Try filtered lines first; if not found, clear search to show all lines
         if let target = filteredLines.first(where: { $0.lineNumber == lineNumber }) {
-            selectedLineID = target.id
+            selectLine(target)
         } else if let target = lines.first(where: { $0.lineNumber == lineNumber }) {
             searchText = ""
-            selectedLineID = target.id
+            selectLine(target)
         }
     }
 
@@ -406,9 +425,9 @@ final class GladeViewModel: Identifiable {
         if let current = selectedLineID,
            let idx = list.firstIndex(where: { $0.id == current }),
            idx + 1 < list.count {
-            selectedLineID = list[idx + 1].id
+            selectLine(list[idx + 1])
         } else if selectedLineID == nil {
-            selectedLineID = list.first?.id
+            selectLine(list.first)
         }
     }
 
@@ -418,7 +437,7 @@ final class GladeViewModel: Identifiable {
         if let current = selectedLineID,
            let idx = list.firstIndex(where: { $0.id == current }),
            idx > 0 {
-            selectedLineID = list[idx - 1].id
+            selectLine(list[idx - 1])
         }
     }
 

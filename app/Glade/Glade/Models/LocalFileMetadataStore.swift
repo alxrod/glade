@@ -55,10 +55,16 @@ final class LocalFileMetadataStore {
     }
 
     func setTag(_ color: JSONLRowTagColor?, for line: JSONLLine, in url: URL) {
+        setTag(color, for: [line], in: url)
+    }
+
+    func setTag(_ color: JSONLRowTagColor?, for lines: [JSONLLine], in url: URL) {
+        guard !lines.isEmpty else { return }
         var updated = Self.readTags(from: defaults)
         let key = Self.fileKey(url)
-        updated[key, default: [:]][line.annotationKey] = color?.rawValue
-        if updated[key]?.isEmpty == true { updated.removeValue(forKey: key) }
+        var fileTags = updated[key] ?? [:]
+        for line in lines { fileTags[line.annotationKey] = color?.rawValue }
+        updated[key] = fileTags.isEmpty ? nil : fileTags
         defaults.set(updated, forKey: Self.rowTagsKey)
         tags = updated
     }

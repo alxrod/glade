@@ -51,7 +51,8 @@ struct JSONLTableView: View {
                 hiddenColumnIDs: Set(hiddenColumns.map(\.identifier)),
                 rowTags: tags,
                 compactTimestampCells: viewModel.document?.compactTimestampCells ?? [:],
-                selectedLineID: $viewModel.selectedLineID,
+                selectedLineIDs: viewModel.selectedLineIDs,
+                onSelectionChanged: { viewModel.selectLines(withIDs: $0, primaryID: $1) },
                 zoomLevel: zoomLevel,
                 onInspect: { viewModel.inspectLine($0) },
                 onCloseInspector: { viewModel.isInspectorPresented = false },
@@ -60,7 +61,7 @@ struct JSONLTableView: View {
                 onResetColumnOrder: { columnLayoutStore.reset(for: defaultColumns) },
                 onResizeColumn: { columnLayoutStore.saveWidth($1, for: $0, in: defaultColumns) },
                 onHideColumn: { columnLayoutStore.hide($0, in: defaultColumns) },
-                onTagRow: { viewModel.tagLine($0, color: $1) }
+                onTagRows: { viewModel.tagLines($0, color: $1) }
             )
             .overlay {
                 if rows.isEmpty && !viewModel.searchResults.isSearching {
@@ -80,6 +81,9 @@ struct JSONLTableView: View {
             Divider()
             HStack {
                 Text("\(rows.count) of \(viewModel.lineCount) rows")
+                if viewModel.selectedLineIDs.count > 1 {
+                    Text("\(viewModel.selectedLineIDs.count) selected")
+                }
                 if viewModel.searchResults.isSearching { Text("Searching…") }
                 Spacer()
                 Text("Double-click a row to inspect")
@@ -95,10 +99,8 @@ struct JSONLTableView: View {
             await viewModel.searchResults.update(lines: viewModel.lines, query: request.query, taggedIDs: request.taggedIDs)
         }
         .onChange(of: rows.map(\.id)) { _, _ in
-            // Keep the inspector and copy commands tied to a visible result.
-            if !viewModel.filteredLines.contains(where: { $0.id == viewModel.selectedLineID }) {
-                viewModel.selectedLineID = viewModel.filteredLines.first?.id
-            }
+            // Keep selections, the inspector and copy commands tied to visible results.
+            viewModel.reconcileSelection(with: rows)
         }
     }
 }
@@ -118,7 +120,8 @@ struct JSONLRecordsTable: NSViewRepresentable {
     let hiddenColumnIDs: Set<String>
     let rowTags: [UUID: JSONLRowTagColor]
     let compactTimestampCells: [String: [UUID: String]]
-    @Binding var selectedLineID: UUID?
+    let selectedLineIDs: Set<UUID>
+    let onSelectionChanged: (Set<UUID>, UUID?) -> Void
     let zoomLevel: Double
     let onInspect: (JSONLLine) -> Void
     let onCloseInspector: () -> Void
@@ -127,7 +130,7 @@ struct JSONLRecordsTable: NSViewRepresentable {
     let onResetColumnOrder: () -> Void
     let onResizeColumn: (JSONLTableColumn, Double) -> Void
     let onHideColumn: (JSONLTableColumn) -> Void
-    let onTagRow: (JSONLLine, JSONLRowTagColor?) -> Void
+    let onTagRows: ([JSONLLine], JSONLRowTagColor?) -> Void
 
     func makeCoordinator() -> Coordinator { Coordinator(parent: self) }
 
@@ -137,7 +140,7 @@ struct JSONLRecordsTable: NSViewRepresentable {
         table.dataSource = context.coordinator
         table.target = context.coordinator
         table.doubleAction = #selector(Coordinator.inspectClickedRow(_:))
-        table.allowsMultipleSelection = false
+        table.allowsMultipleSelection = true
         table.allowsEmptySelection = true
         table.allowsColumnReordering = true
         table.allowsColumnResizing = true
@@ -147,14 +150,14 @@ struct JSONLRecordsTable: NSViewRepresentable {
         table.style = .plain
         table.intercellSpacing = NSSize(width: 1, height: 1)
         table.setAccessibilityLabel(String(localized: "JSONL rows"))
-        table.setAccessibilityHelp(String(localized: "Select a row and press Return to show its full content."))
+        table.setAccessibilityHelp(String(localized: "Shift-click to select a range, Command-click to select individual rows, or Command-A to select all visible rows. Right-click to tag selected rows. Press Return to inspect a row."))
         table.onInspectSelection = { [weak coordinator = context.coordinator, weak table] in
             guard let table else { return }
             coordinator?.inspect(row: table.selectedRow)
         }
         table.onCloseInspector = onCloseInspector
-        table.cellContextMenu = { [weak coordinator = context.coordinator] rowIndex, columnIndex in
-            coordinator?.menu(forRowAt: rowIndex, columnAt: columnIndex)
+        table.cellContextMenu = { [weak coordinator = context.coordinator, weak table] rowIndex, columnIndex in
+            coordinator?.menu(forRowAt: rowIndex, columnAt: columnIndex, selection: table?.selectedRowIndexes ?? [])
         }
         let header = RecordsTableHeaderView(frame: table.headerView?.frame ?? NSRect(x: 0, y: 0, width: 0, height: 24))
         header.columnContextMenu = { [weak coordinator = context.coordinator] columnIndex in
@@ -219,11 +222,10 @@ struct JSONLRecordsTable: NSViewRepresentable {
         // Re-parsing creates new line IDs along with the timestamp presentation.
         if columnsChanged || rowsChanged || zoomChanged || visibilityChanged || tagsChanged { table.reloadData() }
 
-        let selectedRow = rows.firstIndex { $0.id == selectedLineID }
-        let indexes = selectedRow.map { IndexSet(integer: $0) } ?? IndexSet()
+        let indexes = IndexSet(rows.indices.filter { selectedLineIDs.contains(rows[$0].id) })
         if table.selectedRowIndexes != indexes {
             table.selectRowIndexes(indexes, byExtendingSelection: false)
-            if let selectedRow { table.scrollRowToVisible(selectedRow) }
+            if indexes.count == 1, let selectedRow = indexes.first { table.scrollRowToVisible(selectedRow) }
         }
     }
 
@@ -287,7 +289,9 @@ struct JSONLRecordsTable: NSViewRepresentable {
 
         func tableViewSelectionDidChange(_ notification: Notification) {
             guard !isUpdating, let table = notification.object as? NSTableView else { return }
-            parent.selectedLineID = rows.indices.contains(table.selectedRow) ? rows[table.selectedRow].id : nil
+            let ids = Set(table.selectedRowIndexes.compactMap { rows.indices.contains($0) ? rows[$0].id : nil })
+            let primaryID = rows.indices.contains(table.selectedRow) ? rows[table.selectedRow].id : nil
+            parent.onSelectionChanged(ids, primaryID)
         }
 
         func tableView(_ tableView: NSTableView, shouldReorderColumn columnIndex: Int, toColumn newColumnIndex: Int) -> Bool {
@@ -343,41 +347,43 @@ struct JSONLRecordsTable: NSViewRepresentable {
             return menu
         }
 
-        func menu(forRowAt row: Int, columnAt column: Int) -> NSMenu? {
+        func menu(forRowAt row: Int, columnAt column: Int, selection: IndexSet) -> NSMenu? {
             guard rows.indices.contains(row) else { return nil }
-            let line = rows[row]
+            let indexes = selection.contains(row) ? selection : IndexSet(integer: row)
+            let lineIDs = Set(indexes.compactMap { rows.indices.contains($0) ? rows[$0].id : nil })
+            let selectedTags = lineIDs.compactMap { parent.rowTags[$0] }
             let menu = menu(forColumnAt: column) ?? NSMenu()
             menu.autoenablesItems = false
             if !menu.items.isEmpty { menu.addItem(.separator()) }
-            let title = NSMenuItem(title: String(localized: "Tag Row"), action: nil, keyEquivalent: "")
+            let title = NSMenuItem(title: lineIDs.count == 1 ? String(localized: "Tag Row") : String(localized: "Tag \(lineIDs.count) Rows"), action: nil, keyEquivalent: "")
             title.isEnabled = false
             menu.addItem(title)
             for color in JSONLRowTagColor.allCases {
-                let item = NSMenuItem(title: color.title, action: #selector(tagRow(_:)), keyEquivalent: "")
+                let item = NSMenuItem(title: color.title, action: #selector(tagRows(_:)), keyEquivalent: "")
                 item.image = color.menuImage
-                item.state = parent.rowTags[line.id] == color ? .on : .off
+                let matchingCount = selectedTags.filter { $0 == color }.count
+                item.state = matchingCount == lineIDs.count ? .on : (matchingCount > 0 ? .mixed : .off)
                 item.target = self
-                item.representedObject = RowTagAction(lineID: line.id, color: color)
+                item.representedObject = RowTagAction(lineIDs: lineIDs, color: color)
                 menu.addItem(item)
             }
-            let remove = NSMenuItem(title: String(localized: "Remove Tag"), action: #selector(tagRow(_:)), keyEquivalent: "")
+            let remove = NSMenuItem(title: lineIDs.count == 1 ? String(localized: "Remove Tag") : String(localized: "Remove Tags"), action: #selector(tagRows(_:)), keyEquivalent: "")
             remove.image = NSImage(systemSymbolName: "xmark.circle", accessibilityDescription: String(localized: "Remove tag"))
             remove.target = self
-            remove.representedObject = RowTagAction(lineID: line.id, color: nil)
-            remove.isEnabled = parent.rowTags[line.id] != nil
+            remove.representedObject = RowTagAction(lineIDs: lineIDs, color: nil)
+            remove.isEnabled = !selectedTags.isEmpty
             menu.addItem(remove)
             return menu
         }
 
         private struct RowTagAction {
-            let lineID: UUID
+            let lineIDs: Set<UUID>
             let color: JSONLRowTagColor?
         }
 
-        @objc func tagRow(_ sender: NSMenuItem) {
-            guard let action = sender.representedObject as? RowTagAction,
-                  let line = rows.first(where: { $0.id == action.lineID }) else { return }
-            parent.onTagRow(line, action.color)
+        @objc func tagRows(_ sender: NSMenuItem) {
+            guard let action = sender.representedObject as? RowTagAction else { return }
+            parent.onTagRows(rows.filter { action.lineIDs.contains($0.id) }, action.color)
         }
 
         @objc func hideColumn(_ sender: NSMenuItem) {
@@ -408,8 +414,13 @@ final class RecordsTableView: NSTableView {
 
     override func menu(for event: NSEvent) -> NSMenu? {
         let location = convert(event.locationInWindow, from: nil)
-        guard row(at: location) >= 0 else { return super.menu(for: event) }
-        return cellContextMenu?(row(at: location), column(at: location)) ?? super.menu(for: event)
+        let clickedRow = row(at: location)
+        guard clickedRow >= 0 else { return super.menu(for: event) }
+        window?.makeFirstResponder(self)
+        if !selectedRowIndexes.contains(clickedRow) {
+            selectRowIndexes(IndexSet(integer: clickedRow), byExtendingSelection: false)
+        }
+        return cellContextMenu?(clickedRow, column(at: location)) ?? super.menu(for: event)
     }
 
     override func keyDown(with event: NSEvent) {

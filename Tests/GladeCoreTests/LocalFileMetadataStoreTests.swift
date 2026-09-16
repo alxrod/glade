@@ -80,6 +80,49 @@ final class LocalFileMetadataStoreTests: XCTestCase {
         XCTAssertTrue(doc.lines.filter { query.matches($0, isTagged: changedTags[$0.id] != nil) }.isEmpty)
     }
 
+    func testBatchRetaggingAndRemovalPersistOnlyForTargetedRowsAndFile() throws {
+        let defaults = try preferences()
+        let store = LocalFileMetadataStore(defaults: defaults)
+        let content = "{\"id\":1}\n{\"id\":1}\n{\"id\":2}\n{\"id\":3}"
+        let doc = document(content)
+        let otherFile = URL(fileURLWithPath: "/tmp/glade-annotations/other.jsonl")
+        store.setTag(.blue, for: doc.lines[0], in: file)
+        store.setTag(.red, for: doc.lines[2], in: file)
+        store.setTag(.orange, for: doc.lines, in: otherFile)
+        store.setAlias("My selection", for: file)
+
+        store.setTag(.purple, for: [doc.lines[0], doc.lines[1], doc.lines[3]], in: file)
+        let reparsed = document(content)
+        let reopened = LocalFileMetadataStore(defaults: defaults)
+        XCTAssertEqual(reopened.rowTags(for: file, lines: reparsed.lines), [
+            reparsed.lines[0].id: .purple, reparsed.lines[1].id: .purple,
+            reparsed.lines[2].id: .red, reparsed.lines[3].id: .purple,
+        ])
+
+        reopened.setTag(nil, for: [reparsed.lines[0], reparsed.lines[3]], in: file)
+        let afterRemoval = LocalFileMetadataStore(defaults: defaults)
+        XCTAssertEqual(afterRemoval.rowTags(for: file, lines: reparsed.lines), [
+            reparsed.lines[1].id: .purple, reparsed.lines[2].id: .red,
+        ])
+        XCTAssertEqual(afterRemoval.rowTags(for: otherFile, lines: reparsed.lines).count, 4)
+        XCTAssertTrue(afterRemoval.rowTags(for: otherFile, lines: reparsed.lines).values.allSatisfy { $0 == .orange })
+        XCTAssertEqual(afterRemoval.alias(for: file), "My selection")
+
+        afterRemoval.setTag(nil, for: reparsed.lines, in: file)
+        XCTAssertNil(defaults.dictionary(forKey: LocalFileMetadataStore.rowTagsKey)?[file.path])
+        XCTAssertEqual(LocalFileMetadataStore(defaults: defaults).rowTags(for: otherFile, lines: reparsed.lines).count, 4)
+    }
+
+    func testBatchTaggingFilteredMatchesDoesNotTagHiddenRows() throws {
+        let store = LocalFileMetadataStore(defaults: try preferences())
+        let doc = document("{\"type\":\"user\"}\n{\"type\":\"assistant\"}\n{\"type\":\"user\"}")
+        let query = JSONLQuery(conditions: [.init(key: "type", operation: .equals, value: "user")])
+        store.setTag(.green, for: doc.lines.filter { query.matches($0) }, in: file)
+        XCTAssertEqual(store.rowTags(for: file, lines: doc.lines), [doc.lines[0].id: .green, doc.lines[2].id: .green])
+        store.setTag(.red, for: [], in: file)
+        XCTAssertNil(store.rowTags(for: file, lines: doc.lines)[doc.lines[1].id])
+    }
+
     func testCorruptAnnotationsAreIgnoredWithoutSavingDocumentContents() throws {
         let defaults = try preferences()
         let doc = document("{\"message\":\"private document content\"}")
