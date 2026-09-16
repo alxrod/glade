@@ -79,6 +79,10 @@ final class GladeViewModel: Identifiable {
         tableQuery.isActive ? (searchResults.rows ?? lines) : lines
     }
 
+    var tableRowsRevision: UUID {
+        tableQuery.isActive && searchResults.rows != nil ? searchResults.rowsRevision : (document?.id ?? id)
+    }
+
     var preferredName: String { fileURL.flatMap { fileMetadata.alias(for: $0) } ?? displayName }
 
     var rowTags: [UUID: JSONLRowTagColor] {

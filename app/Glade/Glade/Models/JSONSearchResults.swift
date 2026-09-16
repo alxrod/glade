@@ -4,7 +4,10 @@ import Observation
 /// Keeps completed results on screen while a submitted query runs off the main thread.
 @Observable
 final class JSONLSearchResults {
-    private(set) var rows: [JSONLLine]?
+    private(set) var rows: [JSONLLine]? {
+        didSet { rowsRevision = UUID() }
+    }
+    private(set) var rowsRevision = UUID()
     private(set) var isSearching = false
     @ObservationIgnored private var generation = UUID()
     @ObservationIgnored private var documentID: UUID?

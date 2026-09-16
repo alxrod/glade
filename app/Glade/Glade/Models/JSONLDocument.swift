@@ -1,6 +1,7 @@
 import Foundation
 
 struct JSONLDocument {
+    let id = UUID()
     let fileURL: URL
     let lines: [JSONLLine]
     let fileName: String
@@ -99,16 +100,47 @@ enum JSONLTableColumn: Equatable {
         }
     }
 
-    private static func preview(_ value: JSONValue) -> String {
+    fileprivate static func preview(_ value: JSONValue) -> String {
         if case .string(let string) = value { return compact(string) }
         return compact(value.displayString)
     }
 
-    private static func compact(_ text: String) -> String {
+    fileprivate static func compact(_ text: String) -> String {
         let prefix = text.prefix(240)
         return prefix.replacingOccurrences(of: "\n", with: " ↵ ")
             .replacingOccurrences(of: "\r", with: " ")
             .replacingOccurrences(of: "\t", with: " ")
             + (text.dropFirst(240).isEmpty ? "" : "…")
+    }
+}
+
+/// Immutable, bounded strings for the spreadsheet. Build once per cached row,
+/// instead of scanning the object's keys and formatting values for every cell.
+struct JSONLTableRowPreview {
+    let lineNumber: String
+    let fields: [String: String]
+    let rootValue: String
+
+    init(line: JSONLLine) {
+        lineNumber = JSONLTableColumn.lineNumber.text(for: line)
+        if case .object(let pairs) = line.parsed {
+            fields = Dictionary(uniqueKeysWithValues: pairs.map { ($0.key, JSONLTableColumn.preview($0.value)) })
+            rootValue = "—"
+        } else {
+            fields = [:]
+            rootValue = JSONLTableColumn.value.text(for: line)
+        }
+    }
+
+    func text(for column: JSONLTableColumn) -> String {
+        switch column {
+        case .lineNumber: return lineNumber
+        case .field(let key): return fields[key] ?? "—"
+        case .value: return rootValue
+        }
+    }
+
+    var estimatedByteCount: Int {
+        fields.reduce(lineNumber.utf8.count + rootValue.utf8.count) { $0 + $1.key.utf8.count + $1.value.utf8.count }
     }
 }

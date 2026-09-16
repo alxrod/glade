@@ -11,11 +11,15 @@ final class JSONSearchResultsTests: XCTestCase {
     func testSubmittedTableQueryCachesRowsAndClearingRestoresTheDocument() async {
         let source = lines()
         let results = JSONLSearchResults()
+        let initialRevision = results.rowsRevision
         await results.update(lines: source, query: JSONLQuery(text: "hello"))
         XCTAssertEqual(results.rows?.map(\.id), [source[0].id])
         XCTAssertFalse(results.isSearching)
+        XCTAssertNotEqual(results.rowsRevision, initialRevision)
+        let filteredRevision = results.rowsRevision
         await results.update(lines: source, query: JSONLQuery())
         XCTAssertEqual(results.rows?.map(\.id), source.map(\.id))
+        XCTAssertNotEqual(results.rowsRevision, filteredRevision)
     }
 
     func testSubmittedQueryHonorsTagsAndDoesNotRetainRowsFromAnotherParse() async {

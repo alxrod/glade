@@ -9,6 +9,7 @@ struct JSONLTableView: View {
 
     var body: some View {
         let rows = viewModel.filteredLines
+        let rowsRevision = viewModel.tableRowsRevision
         let defaultColumns = viewModel.document?.tableColumns ?? [.lineNumber]
         let hiddenColumns = columnLayoutStore.hiddenColumns(for: defaultColumns)
         let tags = viewModel.rowTags
@@ -46,6 +47,7 @@ struct JSONLTableView: View {
 
             JSONLRecordsTable(
                 rows: rows,
+                rowsRevision: rowsRevision,
                 columns: columnLayoutStore.columns(for: defaultColumns),
                 columnWidths: columnLayoutStore.widths(for: defaultColumns),
                 hiddenColumnIDs: Set(hiddenColumns.map(\.identifier)),
@@ -98,7 +100,7 @@ struct JSONLTableView: View {
         .task(id: request) {
             await viewModel.searchResults.update(lines: viewModel.lines, query: request.query, taggedIDs: request.taggedIDs)
         }
-        .onChange(of: rows.map(\.id)) { _, _ in
+        .onChange(of: rowsRevision) { _, _ in
             // Keep selections, the inspector and copy commands tied to visible results.
             viewModel.reconcileSelection(with: rows)
         }
@@ -115,6 +117,7 @@ private struct TableSearchRequest: Equatable {
 /// handling without attaching competing gestures to every spreadsheet cell.
 struct JSONLRecordsTable: NSViewRepresentable {
     let rows: [JSONLLine]
+    let rowsRevision: UUID
     let columns: [JSONLTableColumn]
     let columnWidths: [String: Double]
     let hiddenColumnIDs: Set<String>
@@ -142,6 +145,7 @@ struct JSONLRecordsTable: NSViewRepresentable {
         table.doubleAction = #selector(Coordinator.inspectClickedRow(_:))
         table.allowsMultipleSelection = true
         table.allowsEmptySelection = true
+        table.usesAutomaticRowHeights = false
         table.allowsColumnReordering = true
         table.allowsColumnResizing = true
         table.columnAutoresizingStyle = .noColumnAutoresizing
@@ -179,17 +183,31 @@ struct JSONLRecordsTable: NSViewRepresentable {
         guard let table = scroll.documentView as? RecordsTableView else { return }
         let coordinator = context.coordinator
         let columnsChanged = coordinator.columns != columns
-        let rowsChanged = coordinator.rows.map(\.id) != rows.map(\.id)
+        let rowsChanged = coordinator.rowsRevision != rowsRevision
         let zoomChanged = coordinator.parent.zoomLevel != zoomLevel
         let visibilityChanged = coordinator.parent.hiddenColumnIDs != hiddenColumnIDs
         let tagsChanged = coordinator.parent.rowTags != rowTags
+        let selectionChanged = coordinator.parent.selectedLineIDs != selectedLineIDs
         coordinator.parent = self
         coordinator.isUpdating = true
         defer { coordinator.isUpdating = false }
-        coordinator.rows = rows
-        coordinator.columns = columns
+        if rowsChanged {
+            coordinator.rows = rows
+            coordinator.rowsRevision = rowsRevision
+            coordinator.rowIndexes = Dictionary(uniqueKeysWithValues: rows.enumerated().map { ($0.element.id, $0.offset) })
+        }
+        if columnsChanged {
+            coordinator.columns = columns
+            coordinator.columnsByIdentifier = Dictionary(uniqueKeysWithValues: columns.map { ($0.identifier, $0) })
+        }
         table.onCloseInspector = onCloseInspector
-        table.rowHeight = max(24, 28 * zoomLevel)
+        let rowHeight = max(24, 28 * zoomLevel)
+        if table.rowHeight != rowHeight { table.rowHeight = rowHeight }
+        if zoomChanged || coordinator.font == nil {
+            let font = NSFont.monospacedSystemFont(ofSize: 12 * zoomLevel, weight: .regular)
+            coordinator.font = font
+            coordinator.textHeight = ceil(font.ascender - font.descender + font.leading) + 2
+        }
 
         if columnsChanged {
             let identifiers = Set(columns.map(\.identifier))
@@ -220,28 +238,60 @@ struct JSONLRecordsTable: NSViewRepresentable {
             if native.isHidden != isHidden { native.isHidden = isHidden }
         }
         // Re-parsing creates new line IDs along with the timestamp presentation.
-        if columnsChanged || rowsChanged || zoomChanged || visibilityChanged || tagsChanged { table.reloadData() }
+        let needsReload = columnsChanged || rowsChanged || zoomChanged || visibilityChanged
+        if needsReload {
+            table.reloadData()
+        } else if tagsChanged {
+            // Tags change decoration only. Keep the native cells and scroll position.
+            coordinator.refreshVisibleTags(in: table)
+        }
 
-        let indexes = IndexSet(rows.indices.filter { selectedLineIDs.contains(rows[$0].id) })
-        if table.selectedRowIndexes != indexes {
-            table.selectRowIndexes(indexes, byExtendingSelection: false)
-            if indexes.count == 1, let selectedRow = indexes.first { table.scrollRowToVisible(selectedRow) }
+        if needsReload || selectionChanged {
+            let indexes = IndexSet(selectedLineIDs.compactMap { coordinator.rowIndexes[$0] })
+            if table.selectedRowIndexes != indexes {
+                table.selectRowIndexes(indexes, byExtendingSelection: false)
+                if indexes.count == 1, let selectedRow = indexes.first { table.scrollRowToVisible(selectedRow) }
+            }
         }
     }
 
     final class Coordinator: NSObject, NSTableViewDataSource, NSTableViewDelegate {
         var parent: JSONLRecordsTable
         var rows: [JSONLLine] = []
+        var rowsRevision: UUID?
+        var rowIndexes: [UUID: Int] = [:]
         var columns: [JSONLTableColumn] = []
+        var columnsByIdentifier: [String: JSONLTableColumn] = [:]
         var isUpdating = false
+        var font: NSFont?
+        var textHeight: CGFloat = 18
+        private let previews = NSCache<NSUUID, PreviewBox>()
 
-        init(parent: JSONLRecordsTable) { self.parent = parent }
+        init(parent: JSONLRecordsTable) {
+            self.parent = parent
+            previews.countLimit = 512
+            previews.totalCostLimit = 4 * 1_024 * 1_024
+        }
+
+        private final class PreviewBox: NSObject {
+            let value: JSONLTableRowPreview
+            init(_ line: JSONLLine) { value = JSONLTableRowPreview(line: line) }
+        }
+
+        private func preview(for line: JSONLLine) -> JSONLTableRowPreview {
+            if let cached = previews.object(forKey: line.id as NSUUID) { return cached.value }
+            let box = PreviewBox(line)
+            previews.setObject(box, forKey: line.id as NSUUID, cost: box.value.estimatedByteCount)
+            return box.value
+        }
 
         func numberOfRows(in tableView: NSTableView) -> Int { rows.count }
 
         func tableView(_ tableView: NSTableView, rowViewForRow row: Int) -> NSTableRowView? {
             guard rows.indices.contains(row) else { return nil }
-            let view = TaggedRecordRowView()
+            let identifier = NSUserInterfaceItemIdentifier("record-row")
+            let view = tableView.makeView(withIdentifier: identifier, owner: nil) as? TaggedRecordRowView ?? TaggedRecordRowView()
+            view.identifier = identifier
             view.tagColor = parent.rowTags[rows[row].id]?.nativeColor
             return view
         }
@@ -249,7 +299,7 @@ struct JSONLRecordsTable: NSViewRepresentable {
         func tableView(_ tableView: NSTableView, viewFor tableColumn: NSTableColumn?, row: Int) -> NSView? {
             guard rows.indices.contains(row),
                   let tableColumn,
-                  let column = columns.first(where: { $0.identifier == tableColumn.identifier.rawValue }) else { return nil }
+                  let column = columnsByIdentifier[tableColumn.identifier.rawValue] else { return nil }
             let identifier = NSUserInterfaceItemIdentifier("record-cell")
             let cell: TaggedRecordCellView
             if let reused = tableView.makeView(withIdentifier: identifier, owner: nil) as? TaggedRecordCellView {
@@ -257,34 +307,40 @@ struct JSONLRecordsTable: NSViewRepresentable {
             } else {
                 cell = TaggedRecordCellView()
                 cell.identifier = identifier
-                let label = NSTextField(labelWithString: "")
-                label.translatesAutoresizingMaskIntoConstraints = false
-                label.maximumNumberOfLines = 1
-                label.lineBreakMode = .byTruncatingTail
-                cell.addSubview(label)
-                cell.textField = label
-                NSLayoutConstraint.activate([
-                    label.leadingAnchor.constraint(equalTo: cell.leadingAnchor, constant: 8),
-                    label.trailingAnchor.constraint(equalTo: cell.trailingAnchor, constant: -8),
-                    label.centerYAnchor.constraint(equalTo: cell.centerYAnchor),
-                ])
             }
             let line = rows[row]
-            let rawText = column.text(for: line)
+            let rawText = preview(for: line).text(for: column)
             let text = parent.compactTimestampCells[column.identifier]?[line.id] ?? rawText
             cell.textField?.stringValue = text
-            cell.textField?.font = .monospacedSystemFont(ofSize: 12 * parent.zoomLevel, weight: .regular)
+            cell.textField?.font = font
+            cell.textHeight = textHeight
             cell.textField?.textColor = column == .lineNumber ? .secondaryLabelColor : .labelColor
             cell.textField?.alignment = column == .lineNumber ? .right : .left
             cell.textField?.setAccessibilityLabel("\(column.title): \(rawText)")
-            let tag = parent.rowTags[line.id]
-            cell.tagIndicator.image = column == .lineNumber ? tag?.menuImage : nil
-            cell.tagIndicator.isHidden = column != .lineNumber || tag == nil
-            if column == .lineNumber, let tag {
-                cell.textField?.setAccessibilityLabel(String(localized: "Line \(line.lineNumber), \(tag.title) tag"))
-            }
+            cell.tagColor = nil
+            if column == .lineNumber { configureTag(in: cell, for: line) }
             cell.toolTip = column == .lineNumber ? line.parseError : rawText
             return cell
+        }
+
+        private func configureTag(in cell: TaggedRecordCellView, for line: JSONLLine) {
+            let tag = parent.rowTags[line.id]
+            cell.tagColor = tag?.nativeColor
+            cell.textField?.setAccessibilityLabel(tag.map {
+                String(localized: "Line \(line.lineNumber), \($0.title) tag")
+            } ?? "\(JSONLTableColumn.lineNumber.title): \(line.lineNumber)")
+        }
+
+        func refreshVisibleTags(in table: NSTableView) {
+            let gutter = table.column(withIdentifier: NSUserInterfaceItemIdentifier(JSONLTableColumn.lineNumber.identifier))
+            table.enumerateAvailableRowViews { view, index in
+                guard self.rows.indices.contains(index) else { return }
+                let line = self.rows[index]
+                (view as? TaggedRecordRowView)?.tagColor = self.parent.rowTags[line.id]?.nativeColor
+                if gutter >= 0, let cell = table.view(atColumn: gutter, row: index, makeIfNecessary: false) as? TaggedRecordCellView {
+                    self.configureTag(in: cell, for: line)
+                }
+            }
         }
 
         func tableViewSelectionDidChange(_ notification: Notification) {
@@ -444,7 +500,9 @@ final class RecordsTableHeaderView: NSTableHeaderView {
 }
 
 final class TaggedRecordRowView: NSTableRowView {
-    var tagColor: NSColor?
+    var tagColor: NSColor? {
+        didSet { if oldValue != tagColor { needsDisplay = true } }
+    }
 
     override func drawBackground(in dirtyRect: NSRect) {
         super.drawBackground(in: dirtyRect)
@@ -456,22 +514,38 @@ final class TaggedRecordRowView: NSTableRowView {
 }
 
 final class TaggedRecordCellView: NSTableCellView {
-    let tagIndicator = NSImageView()
+    var tagColor: NSColor? {
+        didSet { if oldValue != tagColor { needsDisplay = true } }
+    }
+    var textHeight: CGFloat = 18 {
+        didSet { if oldValue != textHeight { needsLayout = true } }
+    }
 
     override init(frame frameRect: NSRect) {
         super.init(frame: frameRect)
-        tagIndicator.translatesAutoresizingMaskIntoConstraints = false
-        tagIndicator.isHidden = true
-        addSubview(tagIndicator)
-        NSLayoutConstraint.activate([
-            tagIndicator.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 6),
-            tagIndicator.centerYAnchor.constraint(equalTo: centerYAnchor),
-            tagIndicator.widthAnchor.constraint(equalToConstant: 10),
-            tagIndicator.heightAnchor.constraint(equalToConstant: 10),
-        ])
+        let label = NSTextField(labelWithString: "")
+        label.maximumNumberOfLines = 1
+        label.lineBreakMode = .byTruncatingTail
+        addSubview(label)
+        textField = label
     }
 
     required init?(coder: NSCoder) { nil }
+
+    override func layout() {
+        super.layout()
+        // Fixed-height spreadsheet cells do not need a constraint solver.
+        textField?.frame = NSRect(x: 8, y: floor((bounds.height - textHeight) / 2),
+                                 width: max(0, bounds.width - 16), height: textHeight)
+    }
+
+    override func draw(_ dirtyRect: NSRect) {
+        super.draw(dirtyRect)
+        if let tagColor {
+            tagColor.setFill()
+            NSBezierPath(ovalIn: NSRect(x: 6, y: (bounds.height - 10) / 2, width: 10, height: 10)).fill()
+        }
+    }
 }
 
 extension JSONLRowTagColor {

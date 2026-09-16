@@ -53,4 +53,39 @@ final class JSONLTableTests: XCTestCase {
         guard case .object(let fields) = line.parsed else { return XCTFail("Expected full object") }
         XCTAssertEqual(fields.first { $0.key == "message" }?.value, .string("first\nsecond"))
     }
+
+    func testCachedRowPreviewsKeepMissingNullAndSyntheticFieldsDistinct() {
+        let line = parse(#"{"line-number":"user field","":7,"nothing":null,"empty":"","nested":{"a":1},"items":[1,2],"flag":false}"#).lines[0]
+        let preview = JSONLTableRowPreview(line: line)
+        XCTAssertEqual(preview.text(for: .lineNumber), "1")
+        XCTAssertEqual(preview.text(for: .field("line-number")), "user field")
+        XCTAssertEqual(preview.text(for: .field("")), "7")
+        XCTAssertEqual(preview.text(for: .field("nothing")), "null")
+        XCTAssertEqual(preview.text(for: .field("empty")), "")
+        XCTAssertEqual(preview.text(for: .field("missing")), "—")
+        XCTAssertEqual(preview.text(for: .field("nested")), "{1 keys}")
+        XCTAssertEqual(preview.text(for: .field("items")), "[2 items]")
+        XCTAssertEqual(preview.text(for: .field("flag")), "false")
+        XCTAssertEqual(preview.text(for: .value), "—")
+    }
+
+    func testCachedRowPreviewsBoundUnicodeTextWithoutChangingTheRecord() throws {
+        let message = "first\nsecond\t" + String(repeating: "👩🏽‍💻", count: 300)
+        let data = try JSONSerialization.data(withJSONObject: ["message": message])
+        let line = JSONLLine(lineNumber: 5, rawJSON: String(decoding: data, as: UTF8.self))
+        let preview = JSONLTableRowPreview(line: line)
+        XCTAssertEqual(preview.text(for: .field("message")), "first ↵ second " + String(repeating: "👩🏽‍💻", count: 227) + "…")
+        XCTAssertGreaterThan(preview.estimatedByteCount, 0)
+        guard case .object(let fields) = line.parsed else { return XCTFail("Expected object") }
+        XCTAssertEqual(fields.first?.value, .string(message))
+    }
+
+    func testCachedPreviewsPreserveMalformedAndScalarRows() {
+        let document = parse("[1,2]\ntrue\nnull\n42\nbroken json")
+        let previews = document.lines.map { JSONLTableRowPreview(line: $0) }
+        XCTAssertEqual(previews.map { $0.text(for: .value) }, ["[2 items]", "true", "null", "42", "broken json"])
+        XCTAssertEqual(previews.last?.text(for: .lineNumber), "⚠ 5")
+        XCTAssertTrue(previews.allSatisfy { $0.text(for: .field("missing")) == "—" })
+        XCTAssertNotEqual(document.id, parse("[1,2]\ntrue\nnull\n42\nbroken json").id)
+    }
 }
