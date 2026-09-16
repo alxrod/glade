@@ -136,7 +136,7 @@ struct JSONLRecordsTable: NSViewRepresentable {
             for column in table.tableColumns { table.removeTableColumn(column) }
             for column in columns {
                 let native = NSTableColumn(identifier: NSUserInterfaceItemIdentifier(column.identifier))
-                native.title = column.title
+                native.title = column == .lineNumber ? "" : column.title
                 native.minWidth = column == .lineNumber ? 56 : 90
                 native.width = column == .lineNumber ? 64 : (column == .value ? 340 : 180)
                 native.maxWidth = column == .lineNumber ? 120 : 1400
