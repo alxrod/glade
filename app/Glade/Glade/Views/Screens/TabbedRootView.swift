@@ -26,7 +26,6 @@ struct TabbedRootView: View {
     @State private var importErrorMessage: String?
     @State private var windowNumber: Int?
     @State private var pendingDirtyAction: PendingDirtyAction?
-    @AppStorage("detailZoomLevel") private var zoomLevel: Double = 1.0
 
     private let initialURLs: [URL]
 
@@ -54,15 +53,18 @@ struct TabbedRootView: View {
         .navigationTitle(manager.activeTab?.preferredName ?? "Glade")
         .frame(minWidth: 900, minHeight: 500)
         .toolbar {
-            ToolbarItem(placement: .navigation) {
-                Button(action: { showFileImporter = true }) {
-                    Label("Open File", systemImage: "folder")
+            if #available(macOS 26.0, *) {
+                ToolbarItem(placement: .navigation) {
+                    if let tab = manager.activeTab {
+                        FileAliasTitleView(tab: tab)
+                    }
                 }
-                .help("Open a file")
-            }
-            ToolbarItem(placement: .navigation) {
-                if let tab = manager.activeTab {
-                    FileAliasTitleView(tab: tab)
+                .sharedBackgroundVisibility(.hidden)
+            } else {
+                ToolbarItem(placement: .navigation) {
+                    if let tab = manager.activeTab {
+                        FileAliasTitleView(tab: tab)
+                    }
                 }
             }
         }
@@ -179,38 +181,27 @@ struct TabbedRootView: View {
         } message: { _ in
             Text("Your changes will be lost if you don't save them.")
         }
-        .onReceive(NotificationCenter.default.publisher(for: .zoomIn)) { _ in
-            zoomIn()
-        }
-        .onReceive(NotificationCenter.default.publisher(for: .zoomOut)) { _ in
-            zoomOut()
-        }
-        .onReceive(NotificationCenter.default.publisher(for: .zoomReset)) { _ in
-            zoomLevel = 1.0
-        }
     }
 
     @ViewBuilder
     private func activeTabView(for tab: GladeViewModel) -> some View {
         HSplitView {
             if tab.isEditing {
-                zoomedContent { editorView(for: tab) }
+                editorView(for: tab)
             } else if tab.fileType == .jsonl {
-                JSONLTableView(viewModel: tab, zoomLevel: zoomLevel)
+                JSONLTableView(viewModel: tab)
                     .id(tab.id)
                     .frame(minWidth: 320, maxWidth: .infinity, maxHeight: .infinity)
                 if tab.isInspectorPresented {
-                    zoomedContent {
-                        DetailView(
-                            line: tab.selectedLine,
-                            searchText: Binding(get: { tab.inspectorSearchText }, set: { tab.inspectorSearchText = $0 }),
-                            onClose: { tab.isInspectorPresented = false }
-                        )
-                    }
+                    DetailView(
+                        line: tab.selectedLine,
+                        searchText: Binding(get: { tab.inspectorSearchText }, set: { tab.inspectorSearchText = $0 }),
+                        onClose: { tab.isInspectorPresented = false }
+                    )
                     .frame(minWidth: 320, idealWidth: 440, maxWidth: 700)
                 }
             } else {
-                zoomedContent { detailContent(for: tab) }
+                detailContent(for: tab)
             }
         }
         .toolbar { tabToolbar(for: tab) }
@@ -254,6 +245,11 @@ struct TabbedRootView: View {
 
     @ToolbarContentBuilder
     private func tabToolbar(for tab: GladeViewModel) -> some ToolbarContent {
+        if #available(macOS 26.0, *) {
+            ToolbarSpacer(.flexible, placement: .primaryAction)
+        } else {
+            ToolbarItem(placement: .automatic) { Spacer() }
+        }
         if tab.fileType == .jsonl && !tab.isEditing {
             ToolbarItem(placement: .primaryAction) {
                 Button {
@@ -298,28 +294,6 @@ struct TabbedRootView: View {
                 .help(tab.isEditing ? "Finish editing" : "Edit this file")
             }
         }
-        ToolbarItem(placement: .primaryAction) {
-            HStack(spacing: 4) {
-                Button { zoomOut() } label: {
-                    Image(systemName: "minus.magnifyingglass")
-                }
-                .accessibilityLabel("Zoom out")
-                .help("Zoom out (\u{2318}-)")
-                .disabled(zoomLevel <= 0.5)
-
-                Text(verbatim: "\(Int(zoomLevel * 100))%")
-                    .font(.caption)
-                    .foregroundColor(.secondary)
-                    .frame(width: 36)
-
-                Button { zoomIn() } label: {
-                    Image(systemName: "plus.magnifyingglass")
-                }
-                .accessibilityLabel("Zoom in")
-                .help("Zoom in (\u{2318}+)")
-                .disabled(zoomLevel >= 2.0)
-            }
-        }
     }
 
     @ViewBuilder
@@ -357,18 +331,6 @@ struct TabbedRootView: View {
             }
         }
         .animation(.spring(duration: 0.3), value: tab.exportCopied)
-    }
-
-    private func zoomedContent<Content: View>(@ViewBuilder content: @escaping () -> Content) -> some View {
-        GeometryReader { geo in
-            content()
-                .frame(
-                    width: geo.size.width / zoomLevel,
-                    height: geo.size.height / zoomLevel,
-                    alignment: .topLeading
-                )
-                .scaleEffect(zoomLevel, anchor: .topLeading)
-        }
     }
 
     @ViewBuilder
@@ -418,14 +380,6 @@ struct TabbedRootView: View {
         .scrollContentBackground(.hidden)
         .background(Color(nsColor: .textBackgroundColor))
         .accessibilityLabel(Text("File editor"))
-    }
-
-    private func zoomIn() {
-        zoomLevel = min(2.0, zoomLevel + 0.1)
-    }
-
-    private func zoomOut() {
-        zoomLevel = max(0.5, zoomLevel - 0.1)
     }
 
     private var emptyStateView: some View {

@@ -24,7 +24,7 @@ Use **Filters** above the table to combine column conditions: for example, `mess
 
 Timestamp cells omit shared leading parts only in complete groups: the entire date, then hour and minute together, then whole seconds. Hours and minutes always stay together; differing dates remain fully visible. Fractional seconds retain their original precision. Formatting stays stable while filtering, and the cell tooltip and line inspector show the original timestamp. Mixed timezones or timestamp precision keep their full context.
 
-Press **Return** to submit text searches in the JSON table or line inspector; typing keeps the current results visible. Searches run in the background with a loading indicator, and newer submissions cancel older work. Clearing a search, applying a saved query, and toggling **Tagged only** are explicit actions that apply immediately. Search filters records without changing the table's columns. Markdown files have a rendered view and a searchable outline beneath the file list. Both formats support editing, saving, drag and drop, and zoom. Each macOS Space can have its own workspace.
+Press **Return** to submit text searches in the JSON table or line inspector; typing keeps the current results visible. Searches run in the background with a loading indicator, and newer submissions cancel older work. Clearing a search, applying a saved query, and toggling **Tagged only** are explicit actions that apply immediately. Search filters records without changing the table's columns. Markdown files have a rendered view and a searchable outline beneath the file list. Both formats support drag and drop. Markdown files also support editing and saving. JSONL files are read-only, with Copy and the inspector toggle at the right of the toolbar; the filename is plain text and still supports assigning an alias. Each macOS Space can have its own workspace.
 
 Use **Search this line** at the top of the inspector to search that record independently. Matches are highlighted and counted; unrelated fields are hidden while parent keys and original array indices remain visible. Matching a container key reveals its full value. Clear the search (or press Escape in the field) to restore the full record. The inspector query stays with each file as you select different rows.
 
@@ -62,7 +62,7 @@ Updates use Sparkle with an app-specific signing key and a [GitHub Pages appcast
 | --- | --- |
 | Cmd+O | Open files |
 | Cmd+W | Close active file |
-| Cmd+S | Save while editing |
+| Cmd+S | Save Markdown while editing |
 | Cmd+[ / Cmd+] | Previous / next file |
 | Arrow keys | Navigate rows while the table is focused |
 | Return | Open selected row in the inspector |
@@ -71,8 +71,6 @@ Updates use Sparkle with an app-specific signing key and a [GitHub Pages appcast
 | Cmd+G | Jump to a physical line number |
 | Cmd+Shift+C | Copy selected line as formatted JSON |
 | Cmd+Option+C | Copy selected line as raw JSON |
-| Cmd+Plus / Cmd+Minus | Zoom in / out |
-| Cmd+0 | Reset zoom |
 
 You can also close the inspector using its × button or the toolbar inspector button.
 

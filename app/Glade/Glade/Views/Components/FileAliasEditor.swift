@@ -40,7 +40,6 @@ struct FileAliasTitleView: View {
             }
         )
         .fixedSize(horizontal: true, vertical: false)
-        .padding(.trailing, 12)
         .modifier(FileAliasPrompt(tab: tab, alias: $alias, isPresented: $isPresented))
     }
 }

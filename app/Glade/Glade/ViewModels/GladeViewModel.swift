@@ -63,7 +63,7 @@ final class GladeViewModel: Identifiable {
     }
 
     var canEdit: Bool {
-        fileURL != nil && isLoaded
+        fileType == .markdown && fileURL != nil && isLoaded
     }
 
     var selectedLine: JSONLLine? {

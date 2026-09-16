@@ -179,22 +179,6 @@ struct GladeApp: App {
                 }
                 .keyboardShortcut("]", modifiers: .command)
             }
-            CommandMenu("View") {
-                Button("Zoom In") {
-                    NotificationCenter.default.post(name: .zoomIn, object: nil)
-                }
-                .keyboardShortcut("+", modifiers: .command)
-
-                Button("Zoom Out") {
-                    NotificationCenter.default.post(name: .zoomOut, object: nil)
-                }
-                .keyboardShortcut("-", modifiers: .command)
-
-                Button("Actual Size") {
-                    NotificationCenter.default.post(name: .zoomReset, object: nil)
-                }
-                .keyboardShortcut("0", modifiers: .command)
-            }
             CommandGroup(after: .pasteboard) {
                 Button("Copy Line as Pretty JSON") {
                     NotificationCenter.default.post(name: .exportPrettyJSON, object: nil)
@@ -225,10 +209,6 @@ extension Notification.Name {
     static let exportRawJSON = Notification.Name("net.alexbrodriguez.glade.exportRawJSON")
     static let openFile = Notification.Name("net.alexbrodriguez.glade.openFile")
     static let closeTab = Notification.Name("net.alexbrodriguez.glade.closeTab")
-    static let zoomIn = Notification.Name("net.alexbrodriguez.glade.zoomIn")
-    static let zoomOut = Notification.Name("net.alexbrodriguez.glade.zoomOut")
-    static let zoomReset = Notification.Name("net.alexbrodriguez.glade.zoomReset")
     static let openFileURL = Notification.Name("net.alexbrodriguez.glade.openFileURL")
     static let saveFile = Notification.Name("net.alexbrodriguez.glade.saveFile")
 }
-

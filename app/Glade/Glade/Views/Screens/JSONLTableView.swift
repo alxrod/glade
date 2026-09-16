@@ -5,7 +5,6 @@ import OSLog
 struct JSONLTableView: View {
     @Bindable var viewModel: GladeViewModel
     @State private var columnLayoutStore = JSONLColumnLayoutStore.shared
-    var zoomLevel: Double = 1
 
     var body: some View {
         let rows = viewModel.filteredLines
@@ -55,7 +54,6 @@ struct JSONLTableView: View {
                 compactTimestampCells: viewModel.document?.compactTimestampCells ?? [:],
                 selectedLineIDs: viewModel.selectedLineIDs,
                 onSelectionChanged: { viewModel.selectLines(withIDs: $0, primaryID: $1) },
-                zoomLevel: zoomLevel,
                 onInspect: { viewModel.inspectLine($0) },
                 onCloseInspector: { viewModel.isInspectorPresented = false },
                 hasSavedColumnOrder: columnLayoutStore.hasSavedOrder(for: defaultColumns),
@@ -125,7 +123,6 @@ struct JSONLRecordsTable: NSViewRepresentable {
     let compactTimestampCells: [String: [UUID: String]]
     let selectedLineIDs: Set<UUID>
     let onSelectionChanged: (Set<UUID>, UUID?) -> Void
-    let zoomLevel: Double
     let onInspect: (JSONLLine) -> Void
     let onCloseInspector: () -> Void
     let hasSavedColumnOrder: Bool
@@ -146,6 +143,7 @@ struct JSONLRecordsTable: NSViewRepresentable {
         table.allowsMultipleSelection = true
         table.allowsEmptySelection = true
         table.usesAutomaticRowHeights = false
+        table.rowHeight = 28
         table.allowsColumnReordering = true
         table.allowsColumnResizing = true
         table.columnAutoresizingStyle = .noColumnAutoresizing
@@ -184,7 +182,6 @@ struct JSONLRecordsTable: NSViewRepresentable {
         let coordinator = context.coordinator
         let columnsChanged = coordinator.columns != columns
         let rowsChanged = coordinator.rowsRevision != rowsRevision
-        let zoomChanged = coordinator.parent.zoomLevel != zoomLevel
         let visibilityChanged = coordinator.parent.hiddenColumnIDs != hiddenColumnIDs
         let tagsChanged = coordinator.parent.rowTags != rowTags
         let selectionChanged = coordinator.parent.selectedLineIDs != selectedLineIDs
@@ -201,13 +198,6 @@ struct JSONLRecordsTable: NSViewRepresentable {
             coordinator.columnsByIdentifier = Dictionary(uniqueKeysWithValues: columns.map { ($0.identifier, $0) })
         }
         table.onCloseInspector = onCloseInspector
-        let rowHeight = max(24, 28 * zoomLevel)
-        if table.rowHeight != rowHeight { table.rowHeight = rowHeight }
-        if zoomChanged || coordinator.font == nil {
-            let font = NSFont.monospacedSystemFont(ofSize: 12 * zoomLevel, weight: .regular)
-            coordinator.font = font
-            coordinator.textHeight = ceil(font.ascender - font.descender + font.leading) + 2
-        }
 
         if columnsChanged {
             let identifiers = Set(columns.map(\.identifier))
@@ -238,7 +228,7 @@ struct JSONLRecordsTable: NSViewRepresentable {
             if native.isHidden != isHidden { native.isHidden = isHidden }
         }
         // Re-parsing creates new line IDs along with the timestamp presentation.
-        let needsReload = columnsChanged || rowsChanged || zoomChanged || visibilityChanged
+        let needsReload = columnsChanged || rowsChanged || visibilityChanged
         if needsReload {
             table.reloadData()
         } else if tagsChanged {
@@ -263,12 +253,13 @@ struct JSONLRecordsTable: NSViewRepresentable {
         var columns: [JSONLTableColumn] = []
         var columnsByIdentifier: [String: JSONLTableColumn] = [:]
         var isUpdating = false
-        var font: NSFont?
-        var textHeight: CGFloat = 18
+        let font = NSFont.monospacedSystemFont(ofSize: 12, weight: .regular)
+        let textHeight: CGFloat
         private let previews = NSCache<NSUUID, PreviewBox>()
 
         init(parent: JSONLRecordsTable) {
             self.parent = parent
+            textHeight = ceil(font.ascender - font.descender + font.leading) + 2
             previews.countLimit = 512
             previews.totalCostLimit = 4 * 1_024 * 1_024
         }
