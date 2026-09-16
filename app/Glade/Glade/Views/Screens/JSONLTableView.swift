@@ -12,6 +12,8 @@ struct JSONLTableView: View {
         let defaultColumns = viewModel.document?.tableColumns ?? [.lineNumber]
         let hiddenColumns = columnLayoutStore.hiddenColumns(for: defaultColumns)
         VStack(spacing: 0) {
+            JSONLQueryBar(viewModel: viewModel, columns: columnLayoutStore.columns(for: defaultColumns))
+            Divider()
             HStack(spacing: 8) {
                 Image(systemName: "magnifyingglass")
                     .foregroundStyle(.secondary)
@@ -72,8 +74,8 @@ struct JSONLTableView: View {
                             .font(.largeTitle)
                         Text(viewModel.lines.isEmpty ? "No rows in this file" : "No matching rows")
                             .font(.headline)
-                        if !viewModel.searchText.isEmpty {
-                            Button("Clear Search") { viewModel.searchText = "" }
+                        if viewModel.tableQuery.isActive {
+                            Button("Clear Search and Filters") { viewModel.tableQuery = JSONLQuery() }
                         }
                     }
                     .foregroundStyle(.secondary)
@@ -93,7 +95,7 @@ struct JSONLTableView: View {
             .padding(.vertical, 8)
             .background(Color(nsColor: .windowBackgroundColor))
         }
-        .onChange(of: viewModel.searchText) { _, _ in
+        .onChange(of: viewModel.tableQuery) { _, _ in
             // Keep the inspector and copy commands tied to a visible result.
             if !viewModel.filteredLines.contains(where: { $0.id == viewModel.selectedLineID }) {
                 viewModel.selectedLineID = viewModel.filteredLines.first?.id

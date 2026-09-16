@@ -68,6 +68,19 @@ enum JSONLTableColumn: Equatable {
         JSONLColumnOrdering.columns(for: lines)
     }
 
+    static func fieldKeys(in columns: [JSONLTableColumn]) -> [String] {
+        columns.compactMap {
+            if case .field(let key) = $0 { return key }
+            return nil
+        }
+    }
+
+    static func schemaKey(for columns: [JSONLTableColumn]) -> String? {
+        // JSON encoding avoids delimiter collisions; sorting ignores column order.
+        guard let data = try? JSONEncoder().encode(fieldKeys(in: columns).sorted()) else { return nil }
+        return String(data: data, encoding: .utf8)
+    }
+
     func text(for line: JSONLLine) -> String {
         switch self {
         case .lineNumber:

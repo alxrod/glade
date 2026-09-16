@@ -42,6 +42,7 @@ final class GladeViewModel: Identifiable {
     var showFileImporter = false
     var searchText: String = ""
     var inspectorSearchText: String = ""
+    var columnFilters: [JSONLColumnFilter] = []
     var showJumpToLine: Bool = false
     var exportCopied: Bool = false
 
@@ -70,12 +71,16 @@ final class GladeViewModel: Identifiable {
     }
 
     var filteredLines: [JSONLLine] {
-        let allLines = lines
-        guard !searchText.trimmingCharacters(in: .whitespaces).isEmpty else {
-            return allLines
+        let query = tableQuery
+        return query.isActive ? lines.filter { query.matches($0) } : lines
+    }
+
+    var tableQuery: JSONLQuery {
+        get { JSONLQuery(text: searchText, conditions: columnFilters) }
+        set {
+            searchText = newValue.text
+            columnFilters = newValue.conditions
         }
-        let query = searchText.lowercased()
-        return allLines.filter { $0.rawJSON.lowercased().contains(query) }
     }
 
     var lineCount: Int {

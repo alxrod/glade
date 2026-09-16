@@ -34,7 +34,7 @@ final class JSONLColumnLayoutStore {
     }
 
     func widths(for columns: [JSONLTableColumn]) -> [String: Double] {
-        guard let key = Self.schemaKey(Self.fields(in: columns)), let saved = widths[key] else { return [:] }
+        guard let key = JSONLTableColumn.schemaKey(for: columns), let saved = widths[key] else { return [:] }
         return columns.reduce(into: [:]) { result, column in
             if let width = saved[column.identifier], width.isFinite, width > 0 {
                 result[column.identifier] = min(column.maximumWidth, max(column.minimumWidth, width))
@@ -44,7 +44,7 @@ final class JSONLColumnLayoutStore {
 
     func saveWidth(_ width: Double, for column: JSONLTableColumn, in schema: [JSONLTableColumn]) {
         guard width.isFinite, width > 0, schema.contains(column),
-              let key = Self.schemaKey(Self.fields(in: schema)) else { return }
+              let key = JSONLTableColumn.schemaKey(for: schema) else { return }
         let width = min(column.maximumWidth, max(column.minimumWidth, width))
         guard widths[key]?[column.identifier] != width else { return }
         var updated = Self.readWidths(from: defaults)
@@ -54,14 +54,14 @@ final class JSONLColumnLayoutStore {
     }
 
     func hiddenColumns(for schema: [JSONLTableColumn]) -> [JSONLTableColumn] {
-        guard let key = Self.schemaKey(Self.fields(in: schema)) else { return [] }
+        guard let key = JSONLTableColumn.schemaKey(for: schema) else { return [] }
         let identifiers = Set(hidden[key] ?? [])
         return columns(for: schema).filter { $0 != .lineNumber && identifiers.contains($0.identifier) }
     }
 
     func hide(_ column: JSONLTableColumn, in schema: [JSONLTableColumn]) {
         guard column != .lineNumber, schema.contains(column),
-              let key = Self.schemaKey(Self.fields(in: schema)) else { return }
+              let key = JSONLTableColumn.schemaKey(for: schema) else { return }
         var updated = Self.readHidden(from: defaults)
         var identifiers = Set(updated[key] ?? [])
         guard identifiers.insert(column.identifier).inserted else { return }
@@ -71,7 +71,7 @@ final class JSONLColumnLayoutStore {
     }
 
     func show(_ column: JSONLTableColumn, in schema: [JSONLTableColumn]) {
-        guard let key = Self.schemaKey(Self.fields(in: schema)) else { return }
+        guard let key = JSONLTableColumn.schemaKey(for: schema) else { return }
         var updated = Self.readHidden(from: defaults)
         updated[key] = (updated[key] ?? []).filter { $0 != column.identifier }
         defaults.set(updated, forKey: Self.hiddenStorageKey)
@@ -79,7 +79,7 @@ final class JSONLColumnLayoutStore {
     }
 
     func showAll(in schema: [JSONLTableColumn]) {
-        guard let key = Self.schemaKey(Self.fields(in: schema)) else { return }
+        guard let key = JSONLTableColumn.schemaKey(for: schema) else { return }
         var updated = Self.readHidden(from: defaults)
         updated.removeValue(forKey: key)
         defaults.set(updated, forKey: Self.hiddenStorageKey)
@@ -87,11 +87,11 @@ final class JSONLColumnLayoutStore {
     }
 
     func save(_ reordered: [JSONLTableColumn], for schema: [JSONLTableColumn]) {
-        let fields = Self.fields(in: reordered)
-        let expected = Self.fields(in: schema)
+        let fields = JSONLTableColumn.fieldKeys(in: reordered)
+        let expected = JSONLTableColumn.fieldKeys(in: schema)
         guard fields.count > 1, fields.count == expected.count,
               Set(fields) == Set(expected), Set(fields).count == fields.count,
-              let key = Self.schemaKey(expected) else { return }
+              let key = JSONLTableColumn.schemaKey(for: schema) else { return }
         var updated = Self.readOrders(from: defaults)
         updated[key] = fields
         defaults.set(updated, forKey: Self.storageKey)
@@ -99,7 +99,7 @@ final class JSONLColumnLayoutStore {
     }
 
     func reset(for columns: [JSONLTableColumn]) {
-        guard let key = Self.schemaKey(Self.fields(in: columns)) else { return }
+        guard let key = JSONLTableColumn.schemaKey(for: columns) else { return }
         var updated = Self.readOrders(from: defaults)
         updated.removeValue(forKey: key)
         defaults.set(updated, forKey: Self.storageKey)
@@ -107,25 +107,11 @@ final class JSONLColumnLayoutStore {
     }
 
     private func savedOrder(for columns: [JSONLTableColumn]) -> [String]? {
-        let fields = Self.fields(in: columns)
-        guard let key = Self.schemaKey(fields), let saved = orders[key],
+        let fields = JSONLTableColumn.fieldKeys(in: columns)
+        guard let key = JSONLTableColumn.schemaKey(for: columns), let saved = orders[key],
               saved.count == fields.count, Set(saved) == Set(fields),
               Set(saved).count == saved.count else { return nil }
         return saved
-    }
-
-    private static func fields(in columns: [JSONLTableColumn]) -> [String] {
-        columns.compactMap {
-            if case .field(let key) = $0 { return key }
-            return nil
-        }
-    }
-
-    private static func schemaKey(_ fields: [String]) -> String? {
-        // JSON encoding avoids delimiter collisions in arbitrary property names.
-        // Sorted keys make file order, inferred ranking, and cell values irrelevant.
-        guard let data = try? JSONEncoder().encode(fields.sorted()) else { return nil }
-        return String(data: data, encoding: .utf8)
     }
 
     private static func readOrders(from defaults: UserDefaults) -> [String: [String]] {

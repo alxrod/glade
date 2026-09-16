@@ -27,6 +27,8 @@ app/Glade/
       JSONLDocument.swift        # File parsing, line collection, table schema
       JSONLColumnOrdering.swift  # Document-wide timestamp/content/sparsity ranking
       JSONLColumnLayoutStore.swift # App-wide order, widths and visibility for exact JSON key sets
+      JSONLQuery.swift           # AND column predicates and full-record text search
+      JSONLSavedQueryStore.swift # Named local queries scoped to the same column key identity
       JSONLLine.swift            # Individual line with parsed JSON
       JSONValue.swift            # Recursive JSON value enum
       MarkdownDocument.swift     # Markdown file parsing, heading extraction, block parser
@@ -46,6 +48,7 @@ app/Glade/
         ContentView.swift        # UTType extension only
         UpdateSettingsView.swift # Update channel picker and automatic-check preference
       Components/
+        JSONLQueryBar.swift      # Saved-query buttons and column-filter editor
         JSONValueView.swift      # Recursive JSON tree with collapse/expand
         FileSidebarView.swift    # Open files, close actions, and Markdown outline
         JumpToLineView.swift     # Jump-to-line modal
@@ -102,6 +105,7 @@ Retain both the updater controller and its delegate. Debug disables automatic ch
 - **File sidebar + table + inspector** — `NavigationSplitView` owns the file list; `HSplitView` contains the JSONL table and optional resizable inspector. The inspector reuses `DetailView`; its visibility is stored per file. `NSTableView` owns selection, keyboard navigation, and double-click activation. The table schema is derived once from all document lines, never just search results.
 - **Column ranking is local and deterministic** — Assess every object record while parsing off the main thread. Timestamp wins even when sparse; other columns populated in fewer than a quarter of records go last. Rank readable language by prevalence and approximate word count, then technical strings, numbers, and other values. Bounded recursive analysis includes text inside objects and arrays without copying it into table cells. Final ties use the field name, never dictionary iteration order.
 - **User column layouts override defaults** — A shared observable `JSONLColumnLayoutStore` persists manual order, widths and hidden column identifiers in local UserDefaults. Its identity is a JSON-encoded sorted union of top-level keys across the entire document, independent of paths, values, filters, and incidental raw-content rows. Keep the existing `JSONColumnOrders` preference key so previously saved orders survive. Reads never save heuristic defaults; programmatic native moves and resizes do not write preferences. Keep hidden native columns in the table using `isHidden` so restoring them preserves order and width. The line gutter always stays visible; both synthetic columns stay fixed when reordering. Visibility affects only the spreadsheet, never the document, search, copy, or inspector. Reset Column Order preserves widths and visibility.
+- **Queries use full values and the existing schema identity** — `JSONLQuery` combines the global text search and all column predicates with AND. Contains searches decoded strings and nested content case-insensitively; equals uses exact strings and typed JSON comparisons, preserving array order and ignoring object key order. Missing properties never match, including null equality. Per-tab active queries live in `GladeViewModel`; the filter popover edits a draft until Apply or Save. Shared observable `JSONLSavedQueryStore` persists named queries using `JSONLTableColumn.schemaKey`, the same key encoder used by column layouts. Reapplying replaces the current whole query; updating an existing name preserves its identity. Hidden fields remain available to filters. Query changes reconcile row selection without changing the document or inspector rendering.
 - **`@State` intermediary for search binding** — Direct `@Observable` binding to `.searchable` causes crashes on macOS 14.x
 - **File-open events via `NSAppleEventManager`, not `.onOpenURL`** — `CFBundleDocumentTypes` is declared in Info.plist (so the app registers as a viewer for `.jsonl`/`.md` in Finder). On macOS 26 SDK, AppKit's `NSDocumentController` routes those file-open Apple Events and spawns empty "ghost" windows when the SwiftUI scene count doesn't match. `AppDelegate.applicationWillFinishLaunching` registers a custom `kAEOpenDocuments` handler that runs BEFORE `NSDocumentController`, extracts URLs, and posts them via `.openFileURL` notification. SwiftUI's `.onOpenURL` is NOT used.
 - **Per-Space windows via programmatic `NSHostingController<TabbedRootView>`** — The first window is a SwiftUI `Window(id: "main")` scene. Subsequent windows (one per macOS Space) are created in AppKit when a file is opened on a Space that has no existing Glade window. Each window owns its own `TabManager`.
