@@ -1,6 +1,6 @@
-# Parsely
+# Glade
 
-A macOS app for viewing and exploring JSONL (JSON Lines) and Markdown files. Line-by-line parsing with collapsible JSON trees, markdown rendering with header navigation, multi-file tabs, search, and pretty-print export.
+A macOS app for viewing and exploring JSONL (JSON Lines) and Markdown files. Line-by-line parsing with collapsible JSON trees, markdown rendering with header navigation, a file sidebar, record table, search, and pretty-print export.
 
 ## Tech Stack
 
@@ -8,41 +8,45 @@ A macOS app for viewing and exploring JSONL (JSON Lines) and Markdown files. Lin
 - **Language:** Swift 5.0+
 - **Patterns:** @Observable macro, async/await (no Combine)
 - **Target:** macOS 14.0+
-- **Testing:** XCTest (unit + UI tests)
+- **Testing:** XCTest model and update-channel tests via `swift test`
 - **Distribution:** Direct download (DMG), not App Store
+- **Updates:** Sparkle, with release / beta / alpha channels
 
 ## Project Structure
 
 ```
-app/Parsely/
-  Parsely.xcodeproj/
-  Parsely/
+app/Glade/
+  Glade.xcodeproj/
+  Glade/
     App/
-      ParselyApp.swift          # App entry point + AppDelegate (NSAppleEventManager
+      GladeApp.swift          # App entry point + AppDelegate (NSAppleEventManager
                                 # intercept for file opens, per-Space window creation),
                                 # menu commands, keyboard shortcuts
+      UpdateController.swift    # Retained Sparkle controller/delegate, observable menu state
     Models/
-      JSONLDocument.swift        # File parsing, line collection
+      JSONLDocument.swift        # File parsing, line collection, table schema
+      JSONLColumnOrdering.swift  # Document-wide timestamp/content/sparsity ranking
       JSONLLine.swift            # Individual line with parsed JSON
       JSONValue.swift            # Recursive JSON value enum
       MarkdownDocument.swift     # Markdown file parsing, heading extraction, block parser
       MarkdownHeading.swift      # Heading tree model (level, title, children)
+      UpdateChannel.swift        # Channel subscriptions, persistence, stability policy
     ViewModels/
-      ParselyViewModel.swift     # Per-tab state: document, selection, search, export
+      GladeViewModel.swift     # Per-tab state: document, selection, search, export
       TabManager.swift           # Tab collection management (one instance per window)
     Views/
       Screens/
-        TabbedRootView.swift     # Root view: NavigationSplitView + tabs + toolbar +
+        TabbedRootView.swift     # Root view: file sidebar + record table + inspector +
                                  # zoom; inlined WindowAccessor for NSWindow tracking
-        SidebarView.swift        # Line list with inline search (JSONL)
+        JSONLTableView.swift     # Native spreadsheet table with inline search (JSONL)
         DetailView.swift         # JSON detail renderer
         MarkdownSidebarView.swift # Collapsible heading tree (Markdown)
         MarkdownDetailView.swift  # Rendered markdown with scroll-to-heading
         ContentView.swift        # UTType extension only
+        UpdateSettingsView.swift # Update channel picker and automatic-check preference
       Components/
         JSONValueView.swift      # Recursive JSON tree with collapse/expand
-        SidebarRowView.swift     # Line preview row
-        TabStripView.swift       # Tab bar component
+        FileSidebarView.swift    # Open files, close actions, and Markdown outline
         JumpToLineView.swift     # Jump-to-line modal
 ```
 
@@ -50,16 +54,25 @@ app/Parsely/
 
 ## Building
 
+Open `app/Glade/Glade.xcodeproj`, select **Glade**, and run in Xcode. For distribution, archive the Release configuration and export with Developer ID signing.
+
+Avoid CLI verification builds in Xcode's shared DerivedData: they register duplicate apps with LaunchServices. When a CLI build is necessary, use a temporary `-derivedDataPath`, unregister every resulting app with `lsregister -u`, and delete the temporary build directory in the same operation. Never run app-hosted tests in the development app's DerivedData.
+
+Model regression tests (no app registration):
+
 ```bash
-cd app/Parsely
-xcodebuild -project Parsely.xcodeproj -scheme Parsely -configuration Debug build
+swift test
 ```
 
-Release build:
-```bash
-xcodebuild -project Parsely.xcodeproj -scheme Parsely -configuration Release build \
-  CONFIGURATION_BUILD_DIR=/tmp/Parsely-release
-```
+Signing is configured through `Developer.xcconfig`, which optionally includes gitignored `Local.xcconfig`. Copy the example and set `DEVELOPMENT_TEAM` before building.
+
+Debug is **Glade Dev** (`net.alexbrodriguez.glade.development`); Release is **Glade** (`net.alexbrodriguez.glade`). `GLADE_DEVELOPMENT_BUNDLE_ID` can override the Debug identity without changing Release. Keep `CFBundleShortVersionString` and `CFBundleVersion` driven by `MARKETING_VERSION` and `CURRENT_PROJECT_VERSION`.
+
+## Publishing updates
+
+Use the `push-update` skill and [docs/releasing.md](docs/releasing.md). Sparkle's keychain account is **Glade**, never the shared default account. The appcast lives on `gh-pages` at `https://alxrod.github.io/glade/appcast.xml`; release DMGs live in GitHub Releases. Maintain one increasing build number across all channels. Keep stable appcast items untagged; tag prereleases `beta` or `alpha`.
+
+Retain both the updater controller and its delegate. Debug disables automatic checks and downloads before starting Sparkle. The app remains sandboxed: installer/downloader XPC services and the two bundle-specific Mach lookup entitlements are required. Archive/export must sign all embedded Sparkle helpers with Developer ID; verify nested signatures before notarizing.
 
 ## Quality Gates
 
@@ -85,14 +98,16 @@ xcodebuild -project Parsely.xcodeproj -scheme Parsely -configuration Release bui
 - **No `DisclosureGroup`** — Replaced with custom chevron toggle to avoid recursive layout in `ScrollView` and to control indentation precisely
 - **No `.animation()` on toolbar items** — Triggers AppKit layout recursion; use `withAnimation` in action handlers instead
 - **`.toolbar(removing: .sidebarToggle)`** — Sidebar is always visible, no collapse
-- **Tab strip inside detail column** — Not above `NavigationSplitView`, to keep sidebar rendering consistent regardless of tab count
+- **File sidebar + table + inspector** — `NavigationSplitView` owns the file list; `HSplitView` contains the JSONL table and optional resizable inspector. The inspector reuses `DetailView`; its visibility is stored per file. `NSTableView` owns selection, keyboard navigation, and double-click activation. The table schema is derived once from all document lines, never just search results.
+- **Column ranking is local and deterministic** — Assess every object record while parsing off the main thread. Timestamp wins even when sparse; other columns populated in fewer than a quarter of records go last. Rank readable language by prevalence and approximate word count, then technical strings, numbers, and other values. Bounded recursive analysis includes text inside objects and arrays without copying it into table cells. Final ties use the field name, never dictionary iteration order.
 - **`@State` intermediary for search binding** — Direct `@Observable` binding to `.searchable` causes crashes on macOS 14.x
 - **File-open events via `NSAppleEventManager`, not `.onOpenURL`** — `CFBundleDocumentTypes` is declared in Info.plist (so the app registers as a viewer for `.jsonl`/`.md` in Finder). On macOS 26 SDK, AppKit's `NSDocumentController` routes those file-open Apple Events and spawns empty "ghost" windows when the SwiftUI scene count doesn't match. `AppDelegate.applicationWillFinishLaunching` registers a custom `kAEOpenDocuments` handler that runs BEFORE `NSDocumentController`, extracts URLs, and posts them via `.openFileURL` notification. SwiftUI's `.onOpenURL` is NOT used.
-- **Per-Space windows via programmatic `NSHostingController<TabbedRootView>`** — The first window is a SwiftUI `Window(id: "main")` scene. Subsequent windows (one per macOS Space) are created in AppKit when a file is opened on a Space that has no existing Parsely window. Each window owns its own `TabManager`.
+- **Per-Space windows via programmatic `NSHostingController<TabbedRootView>`** — The first window is a SwiftUI `Window(id: "main")` scene. Subsequent windows (one per macOS Space) are created in AppKit when a file is opened on a Space that has no existing Glade window. Each window owns its own `TabManager`.
 - **Serialize file-open routing** — `AppDelegate.route(urls:)` posts ONE `.openFileURL` notification with a `[URL]` payload; `TabbedRootView` processes them in a single `Task` with sequential `await manager.openFile(from:)` to avoid races on `TabManager.tabs` / `activeTabID`.
 
 ## Bundle Identifiers
 
-- **App:** `com.brandondohman.parsely`
-- **UTType:** `com.brandondohman.parsely.jsonl`
+- **Release app:** `net.alexbrodriguez.glade`
+- **Development app:** `net.alexbrodriguez.glade.development`
+- **UTType:** `net.alexbrodriguez.glade.jsonl`
 - **Supported extensions:** `.jsonl`, `.ndjson`, `.md`, `.markdown`, `.mdown`, `.mkd`

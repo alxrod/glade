@@ -1,0 +1,6 @@
+// Copy to Local.xcconfig and set your Apple development team.
+DEVELOPMENT_TEAM =
+CODE_SIGN_STYLE = Automatic
+
+// Optional separate development app identity:
+// GLADE_DEVELOPMENT_BUNDLE_ID = net.alexbrodriguez.glade.development

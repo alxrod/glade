@@ -1,108 +1,73 @@
-# Parsely
+# Glade
 
-A macOS app for viewing and exploring JSONL (JSON Lines) and Markdown files. Built because I couldn't find one that didn't make me want to punch my monitor.
+<img src="assets/glade-logo.png" alt="Glade logo: a blue river winding through green hills" width="128" height="128">
 
-![Parsely Screenshot](screenshot.png)
+A native macOS workspace for exploring JSONL and Markdown files. Glade is a fork of [Parsely](https://github.com/productengineered/parsely), with a file sidebar, spreadsheet-style JSONL records, and a full-content inspector.
 
-## Why This Exists
+## Workspace
 
-I've been teaching myself to fine-tune models, and with the release of Gemma 4, I wanted to train on my own datasets: lectures, writings, LinkedIn posts. That means working with a lot of JSONL files.
+- **Files on the left:** open, switch, and close JSONL or Markdown files. Unsaved edits are marked beside the filename.
+- **Records in the center:** each JSONL record occupies one spreadsheet row, with its physical line number and a column for each top-level JSON field. Resize columns or scroll horizontally to explore wide records. Nested objects and arrays show compact summaries; missing fields display `—`.
+- **Full content on the right:** double-click a row or press Return to open its inspector. Expand nested JSON using the original syntax-highlighted renderer. Malformed rows display their parse error and raw content. Once open, the inspector follows row selection.
 
-Preparing training data by hand wasn't feasible, so I built prompts in Claude Code to analyze and clean my datasets. Claude is a great model, but I still needed to check its work. No code review tool or security analyzer can tell me whether my data was properly parsed. That's on me to verify.
+Columns are ranked when a document opens: timestamp first, then readable prose (longer text wins ties), commands and paths, numbers, and other values. Fields populated in fewer than a quarter of records move to the right, except timestamps. The heuristic examines nested content too, so a message object with readable text can take priority over technical metadata. The line-number gutter stays at the edge, and records retain their file order.
 
-The problem was actually looking at the files. TextMate, VS Code, TextEdit: each one hit me with a massive wall of single-line JSON stretching infinitely to the right. Completely unusable. I searched for a decent native Mac viewer, tried a few, and nothing fit what I needed: a simple app that parses each line, gives me a collapsible JSON tree, and lets me search across lines.
+Search filters records without changing the table's columns. Markdown files have a rendered view and a searchable outline beneath the file list. Both formats support editing, saving, drag and drop, and zoom. Each macOS Space can have its own workspace.
 
-Then I kept using it for Markdown files too — READMEs, design docs, code review reports. MacDown didn't render lists well, and raw Markdown in a text editor isn't much better than raw JSONL. So I added a Markdown viewer with rendered output, a heading tree sidebar, and scroll-aware navigation.
+## Build
 
-Now, is it possible that a perfect JSONL/Markdown viewer for Mac exists, or a plugin for an app I already have, and I simply failed at searching the internet? Absolutely. If you find one, please don't tell me. I've already built this and I'm emotionally invested.
+Requires macOS 14 or later and Xcode with the macOS SDK.
 
-## What It Does
+1. Copy `app/Glade/Local.xcconfig.example` to `app/Glade/Local.xcconfig` and set your Apple development team.
+2. Open `app/Glade/Glade.xcodeproj` in Xcode.
+3. Select the **Glade** scheme and run the app.
 
-### JSONL Viewer
+Debug builds run as **Glade Dev**, with a separate bundle ID and automatic updates disabled. Release builds run as **Glade**. You can override `GLADE_DEVELOPMENT_BUNDLE_ID` in `Local.xcconfig` for an additional development checkout. Local signing settings are gitignored.
 
-- **Line-by-line JSONL parsing** with error handling for malformed lines
-- **Collapsible JSON trees** with syntax highlighting (strings, numbers, booleans, null)
-- **Real-time search** across all lines in a file
-- **Jump to line** (Cmd+G)
-- **Pretty-print export** — copy any line as formatted JSON to clipboard (Cmd+Shift+C)
+Run model regression tests from the repository root:
 
-### Markdown Viewer
+```sh
+swift test
+```
 
-- **Rendered markdown** — headings, lists, code blocks, tables, blockquotes, bold/italic/links
-- **Heading navigation** — sidebar shows a searchable heading tree; click to jump to any section
-- **Scroll-aware sidebar** — sidebar highlights the heading you're currently reading as you scroll
-- **Anchor links** — in-document links (like a Table of Contents) scroll to the target heading
-- **Resizable tables** — drag the right edge of any table to adjust its width
+## Updates
 
-### Shared
+Choose **Glade → Check for Updates…** to check manually. **Glade → Settings…** selects an update channel:
 
-- **Multi-file tabs** — open JSONL and Markdown files side by side
-- **Drag and drop** — drop files directly into the app
-- **Open with Parsely** — double-click files in Finder or use "Open With"; the file opens as a new tab in the Parsely window on your current macOS Space, or creates a new window on that Space if none exists yet
-- **Per-Space windows** — on multi-desktop setups, each Space keeps its own Parsely window with its own tab set, so Desktop 1 and Desktop 2 don't mix
-- **Zoom** — scale the detail pane from 50% to 200% (persists across sessions)
-- **Dark mode** — adaptive colors that follow your system appearance
-- **Native macOS** — SwiftUI, no Electron, no web views
+- **Release:** stable updates only (the default).
+- **Beta:** beta and stable updates.
+- **Alpha:** alpha, beta, and stable updates.
 
-## Install
+Switching to a more stable channel waits for a newer eligible build; it does not downgrade the installed app. Distribution builds can check automatically; development builds only check when requested.
 
-Download the latest DMG from [Releases](../../releases), open it, and drag Parsely to your Applications folder.
+Updates use Sparkle with an app-specific signing key and a [GitHub Pages appcast](https://alxrod.github.io/glade/appcast.xml). See [Releasing Glade](docs/releasing.md) for signing, notarization, and publishing.
 
-> **Note:** This app is not notarized with Apple. On first launch, macOS will warn you that it "can't be opened because Apple cannot check it for malicious software." Right-click the app, then click Open, then click Open again to bypass this. You only need to do this once.
-
-## Supported File Types
-
-| Extension | Type |
-|-----------|------|
-| `.jsonl` | JSON Lines |
-| `.ndjson` | JSON Lines |
-| `.md` | Markdown |
-| `.markdown` | Markdown |
-| `.mdown` | Markdown |
-| `.mkd` | Markdown |
-
-## Keyboard Shortcuts
+## Keyboard shortcuts
 
 | Shortcut | Action |
-|----------|--------|
-| Cmd+O | Open file |
-| Cmd+G | Jump to line |
-| Cmd+Shift+C | Copy line as pretty JSON |
-| Cmd+W | Close tab |
-| Cmd+[ | Previous tab |
-| Cmd+] | Next tab |
-| Cmd+= | Zoom in |
-| Cmd+- | Zoom out |
-| Cmd+0 | Actual size |
-| Option+Up | Previous line |
-| Option+Down | Next line |
-| Arrow keys | Navigate lines (when sidebar is focused) |
+| --- | --- |
+| Cmd+O | Open files |
+| Cmd+W | Close active file |
+| Cmd+S | Save while editing |
+| Cmd+[ / Cmd+] | Previous / next file |
+| Arrow keys | Navigate rows while the table is focused |
+| Return | Open selected row in the inspector |
+| Escape | Close inspector while the table is focused |
+| Option+Up / Option+Down | Previous / next row |
+| Cmd+G | Jump to a physical line number |
+| Cmd+Shift+C | Copy selected line as formatted JSON |
+| Cmd+Option+C | Copy selected line as raw JSON |
+| Cmd+Plus / Cmd+Minus | Zoom in / out |
+| Cmd+0 | Reset zoom |
 
-## Sample Files
+You can also close the inspector using its × button or the toolbar inspector button.
 
-The `sample-files/` directory includes files you can use to test the app:
+## Supported files
 
-**JSONL** (`sample-files/jsonl/`)
-- `sample_products.jsonl` — Product catalog with nested arrays
-- `sample_events.jsonl` — Analytics events with nested objects
-- `sample_weather.jsonl` — Weather data with flat records
-- `sample_malformed.jsonl` — Mix of valid and broken lines to demonstrate error handling
-- `sample_completely_broken.jsonl` — Every line fails to parse
+JSON Lines: `.jsonl`, `.ndjson`. Markdown: `.md`, `.markdown`, `.mdown`, `.mkd`.
 
-**Markdown** (`sample-files/markdown/`)
-- `sample_stack_recommendation.md` — Technical recommendation with tables, code blocks, lists, and anchor-linked TOC
-- `sample_code_review.md` — Code review report with findings, diff blocks, and severity tables
+The `sample-files/` directory contains product, event, weather, malformed-JSON, and Markdown examples.
 
-## How It Was Built
+## Credits and license
 
-The initial release was built entirely with [Claude Code](https://claude.ai/claude-code) in a single session. The speed was possible because of a reusable `.claude/` directory I maintain for building native macOS and iOS apps. It contains specialized agents — a macOS developer, a designer, a QA engineer — along with skills that stay current on modern Swift patterns, SwiftUI best practices, and Human Interface Guidelines. Point it at a new Xcode project and it already knows how to write, review, and test native Mac apps. This `.claude/` dir is added to this repo.
-
-**Tech stack:** Swift, SwiftUI, @Observable, async/await, macOS 14.0+
-
-## Requirements
-
-- macOS 14.0 (Sonoma) or later
-
-## License
-
-MIT
+Based on [Parsely by productengineered](https://github.com/productengineered/parsely). The original copyright and MIT license are preserved in [LICENSE](LICENSE).
