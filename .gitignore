@@ -22,3 +22,7 @@ Packages/
 
 # Review artifacts
 coderabbit-findings-*.md
+
+# Local signing settings
+Local.xcconfig
+.local/

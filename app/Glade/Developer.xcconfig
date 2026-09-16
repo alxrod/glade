@@ -1,0 +1,4 @@
+GLADE_DEVELOPMENT_BUNDLE_ID = net.alexbrodriguez.glade.development
+
+// Optional, machine-specific signing configuration.
+#include? "Local.xcconfig"
