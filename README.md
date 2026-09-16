@@ -4,7 +4,7 @@
 
 # Glade
 
-A native macOS app for exploring JSONL logs and Markdown files.
+A native macOS app for exploring `.jsonl`, `.ndjson`, and `.json` files.
 
 [Download Glade](https://github.com/alxrod/glade/releases/latest) · macOS 14+ · Apple silicon & Intel
 

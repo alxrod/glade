@@ -19,25 +19,24 @@
 			<key>LSItemContentTypes</key>
 			<array>
 				<string>net.alexbrodriguez.glade.jsonl</string>
+				<string>public.ndjson</string>
+				<string>com.brandondohman.parsely.jsonl</string>
 			</array>
 		</dict>
 		<dict>
 			<key>CFBundleTypeExtensions</key>
 			<array>
-				<string>md</string>
-				<string>markdown</string>
-				<string>mdown</string>
-				<string>mkd</string>
+				<string>json</string>
 			</array>
 			<key>CFBundleTypeName</key>
-			<string>Markdown Document</string>
+			<string>JSON Document</string>
 			<key>CFBundleTypeRole</key>
 			<string>Viewer</string>
 			<key>LSHandlerRank</key>
 			<string>Alternate</string>
 			<key>LSItemContentTypes</key>
 			<array>
-				<string>net.daringfireball.markdown</string>
+				<string>public.json</string>
 			</array>
 		</dict>
 	</array>

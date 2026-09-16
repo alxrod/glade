@@ -144,12 +144,6 @@ struct GladeApp: App {
                 }
                 .keyboardShortcut("w", modifiers: .command)
 
-                Divider()
-
-                Button("Save") {
-                    NotificationCenter.default.post(name: .saveFile, object: nil)
-                }
-                .keyboardShortcut("s", modifiers: .command)
             }
             CommandMenu("Navigation") {
                 Button("Jump to Line\u{2026}") {
@@ -210,5 +204,4 @@ extension Notification.Name {
     static let openFile = Notification.Name("net.alexbrodriguez.glade.openFile")
     static let closeTab = Notification.Name("net.alexbrodriguez.glade.closeTab")
     static let openFileURL = Notification.Name("net.alexbrodriguez.glade.openFileURL")
-    static let saveFile = Notification.Name("net.alexbrodriguez.glade.saveFile")
 }

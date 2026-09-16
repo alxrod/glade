@@ -21,10 +21,6 @@
 		AA000013 /* TabManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA100013 /* TabManager.swift */; };
 		AA000014 /* FileSidebarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA100014 /* FileSidebarView.swift */; };
 		AA000015 /* TabbedRootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA100015 /* TabbedRootView.swift */; };
-		AA000016 /* MarkdownHeading.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA100016 /* MarkdownHeading.swift */; };
-		AA000017 /* MarkdownDocument.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA100017 /* MarkdownDocument.swift */; };
-		AA000018 /* MarkdownSidebarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA100018 /* MarkdownSidebarView.swift */; };
-		AA000019 /* MarkdownDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA100019 /* MarkdownDetailView.swift */; };
 		AA000021 /* UpdateController.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA100021 /* UpdateController.swift */; };
 		AA000022 /* UpdateChannel.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA100022 /* UpdateChannel.swift */; };
 		AA000023 /* UpdateSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA100023 /* UpdateSettingsView.swift */; };
@@ -57,10 +53,6 @@
 		AA100013 /* TabManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TabManager.swift; sourceTree = "<group>"; };
 		AA100014 /* FileSidebarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FileSidebarView.swift; sourceTree = "<group>"; };
 		AA100015 /* TabbedRootView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TabbedRootView.swift; sourceTree = "<group>"; };
-		AA100016 /* MarkdownHeading.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MarkdownHeading.swift; sourceTree = "<group>"; };
-		AA100017 /* MarkdownDocument.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MarkdownDocument.swift; sourceTree = "<group>"; };
-		AA100018 /* MarkdownSidebarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MarkdownSidebarView.swift; sourceTree = "<group>"; };
-		AA100019 /* MarkdownDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MarkdownDetailView.swift; sourceTree = "<group>"; };
 		AA200001 /* Glade.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Glade.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		AA100020 /* Developer.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = ../Developer.xcconfig; sourceTree = "<group>"; };
 		AA100021 /* UpdateController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UpdateController.swift; sourceTree = "<group>"; };
@@ -147,8 +139,6 @@
 				AA100030 /* JSONLSavedQueryStore.swift */,
 				AA100032 /* LocalFileMetadataStore.swift */,
 				AA100034 /* JSONSearchResults.swift */,
-				AA100016 /* MarkdownHeading.swift */,
-				AA100017 /* MarkdownDocument.swift */,
 			);
 			path = Models;
 			sourceTree = "<group>";
@@ -160,8 +150,6 @@
 				AA100009 /* DetailView.swift */,
 				AA100010 /* JSONLTableView.swift */,
 				AA100015 /* TabbedRootView.swift */,
-				AA100018 /* MarkdownSidebarView.swift */,
-				AA100019 /* MarkdownDetailView.swift */,
 				AA100023 /* UpdateSettingsView.swift */,
 			);
 			path = Screens;
@@ -272,10 +260,6 @@
 				AA000013 /* TabManager.swift in Sources */,
 				AA000014 /* FileSidebarView.swift in Sources */,
 				AA000015 /* TabbedRootView.swift in Sources */,
-				AA000016 /* MarkdownHeading.swift in Sources */,
-				AA000017 /* MarkdownDocument.swift in Sources */,
-				AA000018 /* MarkdownSidebarView.swift in Sources */,
-				AA000019 /* MarkdownDetailView.swift in Sources */,
 				AA000021 /* UpdateController.swift in Sources */,
 				AA000022 /* UpdateChannel.swift in Sources */,
 				AA000023 /* UpdateSettingsView.swift in Sources */,
@@ -426,7 +410,7 @@
 				CODE_SIGN_ENTITLEMENTS = Glade/Glade.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 2;
+				CURRENT_PROJECT_VERSION = 3;
 				DEAD_CODE_STRIPPING = YES;
 				ENABLE_APP_SANDBOX = YES;
 				ENABLE_HARDENED_RUNTIME = YES;
@@ -455,7 +439,7 @@
 				CODE_SIGN_ENTITLEMENTS = Glade/Glade.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 2;
+				CURRENT_PROJECT_VERSION = 3;
 				DEAD_CODE_STRIPPING = YES;
 				ENABLE_APP_SANDBOX = YES;
 				ENABLE_HARDENED_RUNTIME = YES;

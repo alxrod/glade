@@ -1,5 +1,22 @@
 import Foundation
 
+enum JSONFileFormat: String, CaseIterable {
+    case jsonl, ndjson, json
+
+    init?(url: URL) {
+        guard url.isFileURL else { return nil }
+        self.init(rawValue: url.pathExtension.lowercased())
+    }
+}
+
+enum JSONDocumentError: LocalizedError {
+    case unsupportedFileType
+
+    var errorDescription: String? {
+        String(localized: "Glade can only open .jsonl, .ndjson, and .json files.")
+    }
+}
+
 struct JSONLDocument {
     let id = UUID()
     let fileURL: URL
@@ -11,11 +28,25 @@ struct JSONLDocument {
     var lineCount: Int { lines.count }
 
     static func parse(from url: URL) throws -> JSONLDocument {
+        guard JSONFileFormat(url: url) != nil else { throw JSONDocumentError.unsupportedFileType }
         let content = try String(contentsOf: url, encoding: .utf8)
         return parse(rawContent: content, url: url)
     }
 
     static func parse(rawContent: String, url: URL) -> JSONLDocument {
+        if JSONFileFormat(url: url) == .json {
+            // A JSON file is one complete value, even when formatted over many
+            // lines. Preserve its original bytes for raw copy and annotations.
+            let lines = rawContent.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                ? [] : [JSONLLine(lineNumber: 1, rawJSON: rawContent)]
+            return JSONLDocument(
+                fileURL: url,
+                lines: lines,
+                fileName: url.lastPathComponent,
+                tableColumns: JSONLTableColumn.columns(for: lines),
+                compactTimestampCells: JSONLTimestampDisplay.compactCells(in: lines)
+            )
+        }
         // Split on "\n" and trim whitespace-including-newlines so CRLF (\r\n)
         // and LF files both count one physical line per iteration. Using
         // CharacterSet.newlines here would double-split on \r\n and shift

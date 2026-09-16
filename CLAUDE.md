@@ -1,6 +1,6 @@
 # Glade
 
-A macOS app for viewing and exploring JSONL (JSON Lines) and Markdown files. Line-by-line parsing with collapsible JSON trees, markdown rendering with header navigation, a file sidebar, record table, search, and pretty-print export.
+A read-only macOS app for viewing JSONL, NDJSON, and JSON files, with collapsible JSON trees, a file sidebar, record table, search, and pretty-print copy.
 
 ## Tech Stack
 
@@ -33,8 +33,6 @@ app/Glade/
       JSONSearchResults.swift   # Cached background search with cancellation and stale-result guards
       JSONLLine.swift            # Individual line with parsed JSON
       JSONValue.swift            # Recursive JSON value enum
-      MarkdownDocument.swift     # Markdown file parsing, heading extraction, block parser
-      MarkdownHeading.swift      # Heading tree model (level, title, children)
       UpdateChannel.swift        # Channel subscriptions, persistence, stability policy
     ViewModels/
       GladeViewModel.swift     # Per-tab state: document, selection, search, export
@@ -45,8 +43,6 @@ app/Glade/
                                  # inlined WindowAccessor for NSWindow tracking
         JSONLTableView.swift     # Native spreadsheet table with inline search (JSONL)
         DetailView.swift         # JSON detail renderer
-        MarkdownSidebarView.swift # Collapsible heading tree (Markdown)
-        MarkdownDetailView.swift  # Rendered markdown with scroll-to-heading
         ContentView.swift        # UTType extension only
         UpdateSettingsView.swift # Update channel picker and automatic-check preference
       Components/
@@ -54,7 +50,7 @@ app/Glade/
         FileAliasEditor.swift   # Shared filename context menu and nickname prompt
         JSONSearchField.swift   # Isolated draft text; Return submits the JSON query
         JSONValueView.swift      # Recursive JSON tree with collapse/expand
-        FileSidebarView.swift    # Open files, close actions, and Markdown outline
+        FileSidebarView.swift    # Open files and close actions
         JumpToLineView.swift     # Jump-to-line modal
 ```
 
@@ -104,11 +100,13 @@ Glade does not use or require CI. Run relevant checks locally; release signing a
 
 ## Key Architecture Decisions
 
+- **Only JSON formats** — The importer allows JSON Lines and JSON types, including the exact types registered for `.jsonl` and `.ndjson` on the Mac; do not add generic text fallbacks. Finder registration includes the system NDJSON type and the inherited Parsely JSONL type. Every open path (importer, Finder, initial URLs, drag-and-drop) reaches `JSONLDocument.parse(from:)`, which rejects non-file URLs and extensions other than `.jsonl`, `.ndjson`, or `.json`, case-insensitively, before reading contents. JSONL and NDJSON preserve physical line numbers; a JSON file is one complete JSON value in one row, including multiline objects and arrays. Keep its full raw content for copy and annotations. There are no editing or Save controls.
+
 - **No `.searchable` modifier** — Replaced with inline `TextField` in sidebar to avoid a known AppKit layout recursion bug (FB13541783) with `NavigationSplitView`
 - **No `DisclosureGroup`** — Replaced with custom chevron toggle to avoid recursive layout in `ScrollView` and to control indentation precisely
 - **No `.animation()` on toolbar items** — Triggers AppKit layout recursion; use `withAnimation` in action handlers instead
 - **`.toolbar(removing: .sidebarToggle)`** — Sidebar is always visible, no collapse
-- **Minimal viewer toolbar** — The filename is plain text with its alias context menu and no shared toolbar background. Opening files lives in the sidebar and File menu. A flexible toolbar spacer puts Copy and the inspector toggle at the trailing edge. JSONL files cannot enter editing mode; Markdown retains editing. Content uses its native size, with no zoom controls, shortcuts, or saved zoom preference.
+- **Minimal viewer toolbar** — The filename is plain text with its alias context menu and no shared toolbar background. Opening files lives in the sidebar and File menu. A flexible toolbar spacer puts Copy and the inspector toggle at the trailing edge. All supported files are read-only. Content uses its native size, with no zoom controls, shortcuts, or saved zoom preference.
 - **File sidebar + table + inspector** — `NavigationSplitView` owns the file list; `HSplitView` contains the JSONL table and optional resizable inspector. The inspector reuses `DetailView`; its visibility is stored per file. `NSTableView` owns selection, keyboard navigation, and double-click activation. The table schema is derived once from all document lines, never just search results.
 - **Spreadsheet scrolling keeps cell work small** — Reuse native row and cell views. Fixed-height cells position their one text field directly and draw tag dots without image subviews or per-cell constraints. Cache bounded row previews by immutable line identity with a 512-row / 4 MiB text-cost NSCache budget; cached previews never replace full document values. Document/result revisions identify row-set changes without scanning every ID on each SwiftUI update; rebuild the ID-to-row lookup only when results change. Tag-only changes repaint existing visible decorations. After actual table reloads, restore native selection from the model, including column visibility changes.
 - **Column ranking is local and deterministic** — Assess every object record while parsing off the main thread. Timestamp wins even when sparse; other columns populated in fewer than a quarter of records go last. Rank readable language by prevalence and approximate word count, then technical strings, numbers, and other values. Bounded recursive analysis includes text inside objects and arrays without copying it into table cells. Final ties use the field name, never dictionary iteration order.
@@ -117,7 +115,7 @@ Glade does not use or require CI. Run relevant checks locally; release signing a
 - **Personal file annotations are separate from schemas and contents** — Shared observable `LocalFileMetadataStore` saves aliases and color tags under standardized file paths. `preferredName` decorates the original name without changing paths, export names, or file contents. The toolbar supplies its own filename text with the same alias editor as the sidebar; hide the native window title visually while retaining its navigation title. Tag identities use a SHA-256 digest of raw row content plus the occurrence among identical rows, computed at parse time. Never persist transient line UUIDs or attach tags solely to physical line numbers. The native table supports Shift ranges, Command-click toggles and Command-A across visible rows. Keep the selected ID set and the primary inspector row in sync, preserving native selection anchors unless the model changes selection. Context-clicking inside the selection captures all selected row IDs; clicking outside selects only that row. Apply or remove all captured tags in one preference write, and preserve only still-visible selections when filtering. Row tint and gutter dots update on tag changes. Tagged-only filtering is part of `JSONLQuery`; decode missing `taggedOnly` as false to preserve older saved searches. Reconcile selection whenever visible row IDs change, including removing a tag while filtering.
 - **JSON text search submits on Return** — Keep draft typing inside `JSONSearchField`, isolated from the table and recursive inspector. The parent only observes submitted text. Cache table matches and inspector paths in `JSONSearchResults` helpers, evaluate immutable snapshots in detached tasks, cancel superseded work, and gate publication by request generation. SwiftUI tasks rerun on submitted query, parsed-document identity, or tagged-row membership, never on draft keystrokes. Show progress while retaining completed results. Clear, saved-query Apply, and tag-filter toggles remain explicit immediate actions. The toolbar filename needs an app-local context-click handler limited to the native label's bounds because NSToolbar otherwise intercepts right-clicks before child views receive them; remove the event monitor when detached or deallocated.
 - **`@State` intermediary for search binding** — Direct `@Observable` binding to `.searchable` causes crashes on macOS 14.x
-- **File-open events via `NSAppleEventManager`, not `.onOpenURL`** — `CFBundleDocumentTypes` is declared in Info.plist (so the app registers as a viewer for `.jsonl`/`.md` in Finder). On macOS 26 SDK, AppKit's `NSDocumentController` routes those file-open Apple Events and spawns empty "ghost" windows when the SwiftUI scene count doesn't match. `AppDelegate.applicationWillFinishLaunching` registers a custom `kAEOpenDocuments` handler that runs BEFORE `NSDocumentController`, extracts URLs, and posts them via `.openFileURL` notification. SwiftUI's `.onOpenURL` is NOT used.
+- **File-open events via `NSAppleEventManager`, not `.onOpenURL`** — `CFBundleDocumentTypes` is declared in Info.plist (so the app registers as a viewer for `.jsonl`, `.ndjson`, and `.json` in Finder). On macOS 26 SDK, AppKit's `NSDocumentController` routes those file-open Apple Events and spawns empty "ghost" windows when the SwiftUI scene count doesn't match. `AppDelegate.applicationWillFinishLaunching` registers a custom `kAEOpenDocuments` handler that runs BEFORE `NSDocumentController`, extracts URLs, and posts them via `.openFileURL` notification. SwiftUI's `.onOpenURL` is NOT used.
 - **Per-Space windows via programmatic `NSHostingController<TabbedRootView>`** — The first window is a SwiftUI `Window(id: "main")` scene. Subsequent windows (one per macOS Space) are created in AppKit when a file is opened on a Space that has no existing Glade window. Each window owns its own `TabManager`.
 - **Serialize file-open routing** — `AppDelegate.route(urls:)` posts ONE `.openFileURL` notification with a `[URL]` payload; `TabbedRootView` processes them in a single `Task` with sequential `await manager.openFile(from:)` to avoid races on `TabManager.tabs` / `activeTabID`.
 
@@ -126,4 +124,4 @@ Glade does not use or require CI. Run relevant checks locally; release signing a
 - **Release app:** `net.alexbrodriguez.glade`
 - **Development app:** `net.alexbrodriguez.glade.development`
 - **UTType:** `net.alexbrodriguez.glade.jsonl`
-- **Supported extensions:** `.jsonl`, `.ndjson`, `.md`, `.markdown`, `.mdown`, `.mkd`
+- **Supported extensions:** `.jsonl`, `.ndjson`, `.json`

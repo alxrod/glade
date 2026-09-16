@@ -2,30 +2,11 @@ import AppKit
 import SwiftUI
 import UniformTypeIdentifiers
 
-enum PendingDirtyAction: Identifiable {
-    case exitEditing(tabID: UUID)
-    case closeTab(tabID: UUID)
-
-    var id: String {
-        switch self {
-        case .exitEditing(let id): return "exit-\(id)"
-        case .closeTab(let id): return "close-\(id)"
-        }
-    }
-
-    var tabID: UUID {
-        switch self {
-        case .exitEditing(let id), .closeTab(let id): return id
-        }
-    }
-}
-
 struct TabbedRootView: View {
     @State private var manager: TabManager
     @State private var showFileImporter = false
     @State private var importErrorMessage: String?
     @State private var windowNumber: Int?
-    @State private var pendingDirtyAction: PendingDirtyAction?
 
     private let initialURLs: [URL]
 
@@ -74,15 +55,9 @@ struct TabbedRootView: View {
         workspaceView
         .fileImporter(
             isPresented: $showFileImporter,
-            allowedContentTypes: [
-                .jsonl,
-                .json,
-                .text,
-                .plainText,
-                UTType(filenameExtension: "jsonl") ?? .text,
-                UTType(filenameExtension: "md") ?? .text,
-                UTType(filenameExtension: "markdown") ?? .text,
-            ],
+            allowedContentTypes: [.jsonl, .json] + ["jsonl", "ndjson"].compactMap {
+                UTType(filenameExtension: $0)
+            },
             allowsMultipleSelection: true
         ) { result in
             switch result {
@@ -157,51 +132,21 @@ struct TabbedRootView: View {
                 requestCloseTab(id: id)
             }
         }
-        .onReceive(NotificationCenter.default.publisher(for: .saveFile)) { _ in
-            guard let tab = manager.activeTab, tab.isEditing else { return }
-            Task { await tab.save() }
-        }
-        .alert(
-            dirtyAlertTitle,
-            isPresented: Binding(
-                get: { pendingDirtyAction != nil },
-                set: { if !$0 { pendingDirtyAction = nil } }
-            ),
-            presenting: pendingDirtyAction
-        ) { action in
-            Button("Save") {
-                resolveDirtyAction(action, save: true)
-            }
-            Button("Don't Save", role: .destructive) {
-                resolveDirtyAction(action, save: false)
-            }
-            Button("Cancel", role: .cancel) {
-                pendingDirtyAction = nil
-            }
-        } message: { _ in
-            Text("Your changes will be lost if you don't save them.")
-        }
     }
 
     @ViewBuilder
     private func activeTabView(for tab: GladeViewModel) -> some View {
         HSplitView {
-            if tab.isEditing {
-                editorView(for: tab)
-            } else if tab.fileType == .jsonl {
-                JSONLTableView(viewModel: tab)
-                    .id(tab.id)
-                    .frame(minWidth: 320, maxWidth: .infinity, maxHeight: .infinity)
-                if tab.isInspectorPresented {
-                    DetailView(
-                        line: tab.selectedLine,
-                        searchText: Binding(get: { tab.inspectorSearchText }, set: { tab.inspectorSearchText = $0 }),
-                        onClose: { tab.isInspectorPresented = false }
-                    )
-                    .frame(minWidth: 320, idealWidth: 440, maxWidth: 700)
-                }
-            } else {
-                detailContent(for: tab)
+            JSONLTableView(viewModel: tab)
+                .id(tab.id)
+                .frame(minWidth: 320, maxWidth: .infinity, maxHeight: .infinity)
+            if tab.isInspectorPresented {
+                DetailView(
+                    line: tab.selectedLine,
+                    searchText: Binding(get: { tab.inspectorSearchText }, set: { tab.inspectorSearchText = $0 }),
+                    onClose: { tab.isInspectorPresented = false }
+                )
+                .frame(minWidth: 320, idealWidth: 440, maxWidth: 700)
             }
         }
         .toolbar { tabToolbar(for: tab) }
@@ -222,23 +167,19 @@ struct TabbedRootView: View {
             JumpToLineView(viewModel: tab)
         }
         .onReceive(NotificationCenter.default.publisher(for: .jumpToLine)) { _ in
-            guard !tab.isEditing, !tab.lines.isEmpty else { return }
+            guard !tab.lines.isEmpty else { return }
             tab.showJumpToLine = true
         }
         .onReceive(NotificationCenter.default.publisher(for: .exportPrettyJSON)) { _ in
-            guard !tab.isEditing else { return }
             tab.exportSelectedLineAsPrettyJSON()
         }
         .onReceive(NotificationCenter.default.publisher(for: .selectNextLine)) { _ in
-            guard !tab.isEditing else { return }
             tab.selectNextLine()
         }
         .onReceive(NotificationCenter.default.publisher(for: .selectPreviousLine)) { _ in
-            guard !tab.isEditing else { return }
             tab.selectPreviousLine()
         }
         .onReceive(NotificationCenter.default.publisher(for: .exportRawJSON)) { _ in
-            guard !tab.isEditing else { return }
             tab.exportSelectedLineAsRawJSON()
         }
     }
@@ -250,49 +191,27 @@ struct TabbedRootView: View {
         } else {
             ToolbarItem(placement: .automatic) { Spacer() }
         }
-        if tab.fileType == .jsonl && !tab.isEditing {
-            ToolbarItem(placement: .primaryAction) {
-                Button {
-                    tab.exportSelectedLineAsPrettyJSON()
-                } label: {
-                    if tab.exportCopied {
-                        Label("Copied!", systemImage: "checkmark")
-                    } else {
-                        Label("Copy as JSON", systemImage: "doc.on.clipboard")
-                    }
+        ToolbarItem(placement: .primaryAction) {
+            Button {
+                tab.exportSelectedLineAsPrettyJSON()
+            } label: {
+                if tab.exportCopied {
+                    Label("Copied!", systemImage: "checkmark")
+                } else {
+                    Label("Copy as JSON", systemImage: "doc.on.clipboard")
                 }
-                .help("Copy selected line as pretty-printed JSON (\u{2318}\u{21E7}C)")
-                .disabled(tab.selectedLine == nil)
             }
+            .help("Copy selected line as pretty-printed JSON (⌘⇧C)")
+            .disabled(tab.selectedLine == nil)
         }
-        if tab.fileType == .jsonl && !tab.isEditing {
-            ToolbarItem(placement: .primaryAction) {
-                Button {
-                    tab.isInspectorPresented.toggle()
-                } label: {
-                    Label("Line Inspector", systemImage: "sidebar.right")
-                }
-                .help(tab.isInspectorPresented ? "Hide line inspector" : "Show line inspector")
-                .disabled(tab.selectedLine == nil && !tab.isInspectorPresented)
+        ToolbarItem(placement: .primaryAction) {
+            Button {
+                tab.isInspectorPresented.toggle()
+            } label: {
+                Label("Line Inspector", systemImage: "sidebar.right")
             }
-        }
-        if tab.canEdit {
-            ToolbarItem(placement: .primaryAction) {
-                Button {
-                    if tab.isEditing {
-                        requestExitEditing(for: tab)
-                    } else {
-                        tab.beginEditing()
-                    }
-                } label: {
-                    if tab.isEditing {
-                        Label("Done", systemImage: "checkmark.circle")
-                    } else {
-                        Label("Edit", systemImage: "square.and.pencil")
-                    }
-                }
-                .help(tab.isEditing ? "Finish editing" : "Edit this file")
-            }
+            .help(tab.isInspectorPresented ? "Hide line inspector" : "Show line inspector")
+            .disabled(tab.selectedLine == nil && !tab.isInspectorPresented)
         }
     }
 
@@ -333,55 +252,6 @@ struct TabbedRootView: View {
         .animation(.spring(duration: 0.3), value: tab.exportCopied)
     }
 
-    @ViewBuilder
-    private func detailContent(for tab: GladeViewModel) -> some View {
-        if tab.isEditing {
-            editorView(for: tab)
-        } else {
-            switch tab.fileType {
-            case .jsonl:
-                DetailView(line: tab.selectedLine, searchText: Binding(
-                    get: { tab.inspectorSearchText }, set: { tab.inspectorSearchText = $0 }
-                ))
-            case .markdown:
-                if let mdDoc = tab.markdownDocument {
-                    MarkdownDetailView(
-                        document: mdDoc,
-                        scrollTarget: tab.scrollTarget,
-                        headingLookup: tab.headingLineIndexToID,
-                        onVisibleHeadingChanged: { headingID in
-                            if tab.selectedHeadingID != headingID {
-                                tab.selectedHeadingID = headingID
-                            }
-                        }
-                    )
-                } else {
-                    VStack(spacing: 12) {
-                        Image(systemName: "doc.text")
-                            .font(.system(size: 48))
-                            .foregroundColor(.secondary)
-                        Text("Unable to display file")
-                            .font(.title3)
-                            .foregroundColor(.secondary)
-                    }
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-                }
-            }
-        }
-    }
-
-    @ViewBuilder
-    private func editorView(for tab: GladeViewModel) -> some View {
-        TextEditor(text: Binding(
-            get: { tab.draftText },
-            set: { tab.draftText = $0 }
-        ))
-        .font(.system(.body, design: .monospaced))
-        .scrollContentBackground(.hidden)
-        .background(Color(nsColor: .textBackgroundColor))
-        .accessibilityLabel(Text("File editor"))
-    }
-
     private var emptyStateView: some View {
         VStack(spacing: 16) {
             Image(systemName: "doc.text.magnifyingglass")
@@ -390,7 +260,7 @@ struct TabbedRootView: View {
             Text("No Files Open")
                 .font(.title3)
                 .foregroundColor(.secondary)
-            Text("Open a file to get started.")
+            Text("Open a JSONL, NDJSON, or JSON file to get started.")
                 .font(.callout)
                 .foregroundColor(.secondary)
             Button("Open File\u{2026}") {
@@ -401,67 +271,9 @@ struct TabbedRootView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
-    // MARK: - Editing & close guards
-
-    private var dirtyAlertTitle: String {
-        if let action = pendingDirtyAction,
-           let tab = manager.tabs.first(where: { $0.id == action.tabID }) {
-            return String(localized: "Save changes to \(tab.displayName)?")
-        }
-        return String(localized: "Save changes?")
-    }
-
-    private func requestExitEditing(for tab: GladeViewModel) {
-        if tab.isDirty {
-            pendingDirtyAction = .exitEditing(tabID: tab.id)
-        } else {
-            tab.exitEditing()
-        }
-    }
-
     private func requestCloseTab(id: UUID) {
-        guard let tab = manager.tabs.first(where: { $0.id == id }) else { return }
-        if tab.isDirty {
-            if manager.activeTabID != id {
-                manager.activeTabID = id
-            }
-            pendingDirtyAction = .closeTab(tabID: id)
-        } else {
-            withAnimation(.easeOut(duration: 0.15)) {
-                manager.closeTab(id)
-            }
-        }
-    }
-
-    private func resolveDirtyAction(_ action: PendingDirtyAction, save: Bool) {
-        guard let tab = manager.tabs.first(where: { $0.id == action.tabID }) else {
-            pendingDirtyAction = nil
-            return
-        }
-        pendingDirtyAction = nil
-
-        if save {
-            Task {
-                await tab.save()
-                await MainActor.run {
-                    guard tab.errorMessage == nil else { return }
-                    completeDirtyAction(action, tab: tab)
-                }
-            }
-        } else {
-            tab.discardDraftAndExitEditing()
-            completeDirtyAction(action, tab: tab)
-        }
-    }
-
-    private func completeDirtyAction(_ action: PendingDirtyAction, tab: GladeViewModel) {
-        switch action {
-        case .exitEditing:
-            tab.exitEditing()
-        case .closeTab(let id):
-            withAnimation(.easeOut(duration: 0.15)) {
-                manager.closeTab(id)
-            }
+        withAnimation(.easeOut(duration: 0.15)) {
+            manager.closeTab(id)
         }
     }
 

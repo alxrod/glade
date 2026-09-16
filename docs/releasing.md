@@ -43,4 +43,4 @@ Release subscribers see untagged items. Beta subscribers see beta and release it
 6. Add an item to `gh-pages/appcast.xml`, preserving older items. Include the marketing version, globally increasing build number, minimum macOS, publication date, download URL, byte length, and EdDSA signature. Include `sparkle:channel` only for beta or alpha builds. Push the feed after the release asset is available.
 7. Fetch the hosted appcast and validate its XML, signature metadata, and download URL. Check for updates from an older installed copy on the intended channel to verify download, installation, relaunch, and version advancement.
 
-The first stable release is Glade 1.0.0 (build 2). A real update install-and-relaunch test requires a subsequent newer signed build; checking the feed and validating a download alone do not cover that flow.
+The first stable release is Glade 1.0.0 (build 3). A real update install-and-relaunch test requires a subsequent newer signed build; checking the feed and validating a download alone do not cover that flow.
