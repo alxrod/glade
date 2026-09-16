@@ -23,3 +23,5 @@ A native macOS app for exploring `.jsonl`, `.ndjson`, and `.json` files.
 To build: copy `app/Glade/Local.xcconfig.example` to `Local.xcconfig` in the same folder, set your Apple development team, then open `app/Glade/Glade.xcodeproj` in Xcode. Run model tests with `swift test`. [Release instructions](docs/releasing.md).
 
 Based on [Parsely](https://github.com/productengineered/parsely). [MIT license](LICENSE).
+
+The Glade logo is inspired by the style of Sabra Field.
