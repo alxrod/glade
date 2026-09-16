@@ -4,6 +4,7 @@ struct DetailView: View {
     let line: JSONLLine?
     @Binding var searchText: String
     var onClose: (() -> Void)?
+    @State private var searchResults = JSONLineSearchResults()
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -26,7 +27,7 @@ struct DetailView: View {
             .padding(.vertical, 10)
 
             if let line {
-                let search = JSONLineSearch(line: line, query: searchText)
+                let search = searchResults.lineID == line.id ? searchResults.search : JSONLineSearch(value: .null, query: "")
                 searchBar(search: search)
                 Divider()
                 ScrollView(.vertical) {
@@ -63,17 +64,17 @@ struct DetailView: View {
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        .task(id: LineSearchRequest(lineID: line?.id, query: searchText)) {
+            await searchResults.update(line: line, query: searchText)
+        }
     }
 
     private func searchBar(search: JSONLineSearch) -> some View {
         HStack(spacing: 8) {
             Image(systemName: "magnifyingglass")
                 .foregroundStyle(.secondary)
-            TextField("Search this line", text: $searchText)
-                .textFieldStyle(.plain)
-                .accessibilityLabel("Search this line")
-                .help("Search keys and values in this line")
-                .onExitCommand { searchText = "" }
+            JSONSearchField(placeholder: "Search this line", accessibilityName: "Search this line", clearLabel: "Clear line search",
+                            submittedText: $searchText, isSearching: searchResults.isSearching)
             if search.isActive {
                 Group {
                     if search.matchCount == 1 {
@@ -85,17 +86,6 @@ struct DetailView: View {
                 .font(.caption)
                 .foregroundStyle(.secondary)
                 .fixedSize()
-            }
-            if !searchText.isEmpty {
-                Button {
-                    searchText = ""
-                } label: {
-                    Image(systemName: "xmark.circle.fill")
-                        .foregroundStyle(.secondary)
-                }
-                .buttonStyle(.plain)
-                .accessibilityLabel("Clear line search")
-                .help("Clear line search")
             }
         }
         .padding(.horizontal, 16)
@@ -159,4 +149,9 @@ struct DetailView: View {
         .padding(16)
         .frame(maxWidth: .infinity, alignment: .leading)
     }
+}
+
+private struct LineSearchRequest: Equatable {
+    let lineID: UUID?
+    let query: String
 }

@@ -20,12 +20,15 @@ struct JSONLDocument {
         // CharacterSet.newlines here would double-split on \r\n and shift
         // line numbers.
         var lines: [JSONLLine] = []
+        var occurrences: [String: Int] = [:]
         var lineNumber = 1
         for raw in rawContent.components(separatedBy: "\n") {
             let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
             defer { lineNumber += 1 }
             guard !trimmed.isEmpty else { continue }
-            lines.append(JSONLLine(lineNumber: lineNumber, rawJSON: trimmed))
+            let occurrence = occurrences[trimmed, default: 0]
+            occurrences[trimmed] = occurrence + 1
+            lines.append(JSONLLine(lineNumber: lineNumber, rawJSON: trimmed, occurrence: occurrence))
         }
 
         return JSONLDocument(

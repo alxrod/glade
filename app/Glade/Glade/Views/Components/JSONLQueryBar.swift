@@ -24,6 +24,12 @@ struct JSONLQueryBar: View {
                 editor
             }
 
+            Toggle(isOn: $viewModel.taggedOnly) {
+                Label("Tagged only", systemImage: "tag")
+            }
+            .toggleStyle(.button)
+            .help("Show only rows with a color tag")
+
             ScrollView(.horizontal) {
                 HStack(spacing: 6) {
                     if saved.isEmpty {
@@ -137,6 +143,7 @@ struct JSONLQueryBar: View {
             TextField("Search all JSON…", text: $draft.text)
                 .textFieldStyle(.roundedBorder)
                 .accessibilityLabel("Query text search")
+            Toggle("Tagged rows only", isOn: $draft.taggedOnly)
             HStack {
                 TextField("Query name", text: $name)
                     .textFieldStyle(.roundedBorder)

@@ -37,6 +37,7 @@ struct JSONLineSearch {
         var ranges: [Range<String.Index>] = []
         var start = text.startIndex
         while start < text.endIndex,
+              !Task.isCancelled,
               let range = text.range(of: query, options: .caseInsensitive, range: start..<text.endIndex) {
             guard range.upperBound > start else { break }
             ranges.append(range)
@@ -47,6 +48,7 @@ struct JSONLineSearch {
 
     @discardableResult
     private mutating func visit(_ value: JSONValue, path: [Int], key: String?, includeSubtree: Bool) -> Bool {
+        guard !Task.isCancelled else { return false }
         let keyMatches = key.map { Self.ranges(in: $0, query: query).count } ?? 0
         matchCount += keyMatches
         var hasMatch = keyMatches > 0

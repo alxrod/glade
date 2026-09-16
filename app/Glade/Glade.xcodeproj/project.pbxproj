@@ -36,6 +36,10 @@
 		AA000029 /* JSONLQuery.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA100029 /* JSONLQuery.swift */; };
 		AA000030 /* JSONLSavedQueryStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA100030 /* JSONLSavedQueryStore.swift */; };
 		AA000031 /* JSONLQueryBar.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA100031 /* JSONLQueryBar.swift */; };
+		AA000032 /* LocalFileMetadataStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA100032 /* LocalFileMetadataStore.swift */; };
+		AA000033 /* FileAliasEditor.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA100033 /* FileAliasEditor.swift */; };
+		AA000034 /* JSONSearchResults.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA100034 /* JSONSearchResults.swift */; };
+		AA000035 /* JSONSearchField.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA100035 /* JSONSearchField.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -69,6 +73,10 @@
 		AA100029 /* JSONLQuery.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JSONLQuery.swift; sourceTree = "<group>"; };
 		AA100030 /* JSONLSavedQueryStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JSONLSavedQueryStore.swift; sourceTree = "<group>"; };
 		AA100031 /* JSONLQueryBar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JSONLQueryBar.swift; sourceTree = "<group>"; };
+		AA100032 /* LocalFileMetadataStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalFileMetadataStore.swift; sourceTree = "<group>"; };
+		AA100033 /* FileAliasEditor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FileAliasEditor.swift; sourceTree = "<group>"; };
+		AA100034 /* JSONSearchResults.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JSONSearchResults.swift; sourceTree = "<group>"; };
+		AA100035 /* JSONSearchField.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JSONSearchField.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -137,6 +145,8 @@
 				AA100028 /* JSONLColumnLayoutStore.swift */,
 				AA100029 /* JSONLQuery.swift */,
 				AA100030 /* JSONLSavedQueryStore.swift */,
+				AA100032 /* LocalFileMetadataStore.swift */,
+				AA100034 /* JSONSearchResults.swift */,
 				AA100016 /* MarkdownHeading.swift */,
 				AA100017 /* MarkdownDocument.swift */,
 			);
@@ -164,6 +174,8 @@
 				AA100011 /* JumpToLineView.swift */,
 				AA100014 /* FileSidebarView.swift */,
 				AA100031 /* JSONLQueryBar.swift */,
+				AA100033 /* FileAliasEditor.swift */,
+				AA100035 /* JSONSearchField.swift */,
 			);
 			path = Components;
 			sourceTree = "<group>";
@@ -272,6 +284,10 @@
 				AA000027 /* JSONLTimestampDisplay.swift in Sources */,
 				AA000028 /* JSONLColumnLayoutStore.swift in Sources */,
 				AA000031 /* JSONLQueryBar.swift in Sources */,
+				AA000033 /* FileAliasEditor.swift in Sources */,
+				AA000035 /* JSONSearchField.swift in Sources */,
+				AA000034 /* JSONSearchResults.swift in Sources */,
+				AA000032 /* LocalFileMetadataStore.swift in Sources */,
 				AA000030 /* JSONLSavedQueryStore.swift in Sources */,
 				AA000029 /* JSONLQuery.swift in Sources */,
 			);

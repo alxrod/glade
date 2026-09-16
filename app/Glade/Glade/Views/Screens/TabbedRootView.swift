@@ -51,7 +51,7 @@ struct TabbedRootView: View {
             }
         }
         .toolbar(removing: .sidebarToggle)
-        .navigationTitle(manager.activeTab?.fileName ?? "Glade")
+        .navigationTitle(manager.activeTab?.preferredName ?? "Glade")
         .frame(minWidth: 900, minHeight: 500)
         .toolbar {
             ToolbarItem(placement: .navigation) {
@@ -59,6 +59,11 @@ struct TabbedRootView: View {
                     Label("Open File", systemImage: "folder")
                 }
                 .help("Open a file")
+            }
+            ToolbarItem(placement: .navigation) {
+                if let tab = manager.activeTab {
+                    FileAliasTitleView(tab: tab)
+                }
             }
         }
     }
@@ -106,6 +111,7 @@ struct TabbedRootView: View {
         }
         .background(WindowAccessor { window in
             windowNumber = window.windowNumber
+            window.titleVisibility = .hidden
         })
         .task {
             for url in initialURLs {

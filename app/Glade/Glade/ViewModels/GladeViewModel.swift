@@ -43,6 +43,10 @@ final class GladeViewModel: Identifiable {
     var searchText: String = ""
     var inspectorSearchText: String = ""
     var columnFilters: [JSONLColumnFilter] = []
+    var taggedOnly = false
+    let fileMetadata = LocalFileMetadataStore.shared
+    let searchResults = JSONLSearchResults()
+    var queryApplicationID = UUID()
     var showJumpToLine: Bool = false
     var exportCopied: Bool = false
 
@@ -71,15 +75,28 @@ final class GladeViewModel: Identifiable {
     }
 
     var filteredLines: [JSONLLine] {
-        let query = tableQuery
-        return query.isActive ? lines.filter { query.matches($0) } : lines
+        tableQuery.isActive ? (searchResults.rows ?? lines) : lines
+    }
+
+    var preferredName: String { fileURL.flatMap { fileMetadata.alias(for: $0) } ?? displayName }
+
+    var rowTags: [UUID: JSONLRowTagColor] {
+        guard let fileURL else { return [:] }
+        return fileMetadata.rowTags(for: fileURL, lines: lines)
+    }
+
+    func tagLine(_ line: JSONLLine, color: JSONLRowTagColor?) {
+        guard let fileURL else { return }
+        fileMetadata.setTag(color, for: line, in: fileURL)
     }
 
     var tableQuery: JSONLQuery {
-        get { JSONLQuery(text: searchText, conditions: columnFilters) }
+        get { JSONLQuery(text: searchText, conditions: columnFilters, taggedOnly: taggedOnly) }
         set {
             searchText = newValue.text
             columnFilters = newValue.conditions
+            taggedOnly = newValue.taggedOnly
+            queryApplicationID = UUID()
         }
     }
 

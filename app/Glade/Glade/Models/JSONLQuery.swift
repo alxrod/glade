@@ -3,17 +3,34 @@ import Foundation
 struct JSONLQuery: Codable, Equatable {
     var text = ""
     var conditions: [JSONLColumnFilter] = []
+    var taggedOnly = false
 
-    var isActive: Bool { !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || !conditions.isEmpty }
+    init(text: String = "", conditions: [JSONLColumnFilter] = [], taggedOnly: Bool = false) {
+        self.text = text
+        self.conditions = conditions
+        self.taggedOnly = taggedOnly
+    }
 
-    func matches(_ line: JSONLLine) -> Bool {
+    private enum CodingKeys: String, CodingKey { case text, conditions, taggedOnly }
+
+    init(from decoder: Decoder) throws {
+        let values = try decoder.container(keyedBy: CodingKeys.self)
+        text = try values.decode(String.self, forKey: .text)
+        conditions = try values.decode([JSONLColumnFilter].self, forKey: .conditions)
+        taggedOnly = try values.decodeIfPresent(Bool.self, forKey: .taggedOnly) ?? false
+    }
+
+    var isActive: Bool { taggedOnly || !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || !conditions.isEmpty }
+
+    func matches(_ line: JSONLLine, isTagged: Bool = false) -> Bool {
+        guard !taggedOnly || isTagged else { return false }
         let search = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard search.isEmpty || line.rawJSON.range(of: search, options: .caseInsensitive) != nil else { return false }
         return conditions.allSatisfy { $0.matches(line) }
     }
 
     func hasSameSearch(as other: JSONLQuery) -> Bool {
-        text == other.text && conditions.count == other.conditions.count
+        text == other.text && taggedOnly == other.taggedOnly && conditions.count == other.conditions.count
             && zip(conditions, other.conditions).allSatisfy {
                 $0.key == $1.key && $0.operation == $1.operation && $0.value == $1.value
             }

@@ -1,4 +1,5 @@
 import Foundation
+import CryptoKit
 
 struct JSONLLine: Identifiable {
     let id = UUID()
@@ -7,8 +8,9 @@ struct JSONLLine: Identifiable {
     let parsed: JSONValue?
     let parseError: String?
     let preview: String
+    let annotationKey: String
 
-    init(lineNumber: Int, rawJSON: String) {
+    init(lineNumber: Int, rawJSON: String, occurrence: Int = 0) {
         self.lineNumber = lineNumber
         self.rawJSON = rawJSON
 
@@ -17,6 +19,7 @@ struct JSONLLine: Identifiable {
 
         // Parse the JSON
         let data = rawJSON.data(using: .utf8) ?? Data()
+        annotationKey = Data(SHA256.hash(data: data)).base64EncodedString() + ":\(occurrence)"
         do {
             let obj = try JSONSerialization.jsonObject(with: data, options: [.fragmentsAllowed])
             self.parsed = JSONValue.from(obj)

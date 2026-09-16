@@ -78,4 +78,17 @@ final class JSONLQueryTests: XCTestCase {
         XCTAssertTrue(first.hasSameSearch(as: second))
         XCTAssertFalse(first.hasSameSearch(as: JSONLQuery(conditions: [.init(key: "a", operation: .equals, value: "hello")])))
     }
+
+    func testExistingSavedQueriesDecodeWithoutTaggedOnlyAndNewQueriesRoundTrip() throws {
+        let legacy = Data(#"{"text":"hello","conditions":[]}"#.utf8)
+        let query = try JSONDecoder().decode(JSONLQuery.self, from: legacy)
+        XCTAssertFalse(query.taggedOnly)
+        XCTAssertTrue(query.matches(line(#"{"text":"hello"}"#)))
+        let tagged = JSONLQuery(taggedOnly: true)
+        XCTAssertTrue(tagged.isActive)
+        XCTAssertFalse(tagged.hasSameSearch(as: JSONLQuery()))
+        XCTAssertEqual(try JSONDecoder().decode(JSONLQuery.self, from: JSONEncoder().encode(tagged)), tagged)
+        XCTAssertFalse(tagged.matches(line("null")))
+        XCTAssertTrue(tagged.matches(line("null"), isTagged: true))
+    }
 }

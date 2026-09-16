@@ -30,7 +30,7 @@ struct FileSidebarView: View {
                         Image(systemName: tab.fileType == .markdown ? "doc.richtext" : "tablecells")
                             .foregroundStyle(.secondary)
                         VStack(alignment: .leading, spacing: 3) {
-                            Text(verbatim: tab.displayName)
+                            Text(verbatim: tab.preferredName)
                                 .font(.callout)
                                 .lineLimit(1)
                                 .truncationMode(.middle)
@@ -56,11 +56,12 @@ struct FileSidebarView: View {
                                 .contentShape(Rectangle())
                         }
                         .buttonStyle(.borderless)
-                        .accessibilityLabel(Text("Close \(tab.displayName)"))
+                        .accessibilityLabel(Text("Close \(tab.preferredName)"))
                     }
                     .padding(.vertical, 4)
                     .tag(tab.id)
                     .help(tab.fileURL?.path ?? tab.displayName)
+                    .modifier(FileAliasEditor(tab: tab))
                 }
             }
             .listStyle(.sidebar)
