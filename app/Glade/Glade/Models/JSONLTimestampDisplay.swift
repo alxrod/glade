@@ -32,7 +32,10 @@ enum JSONLTimestampDisplay {
                   values.allSatisfy({ $0.1.components[shared] == first.components[shared] }) {
                 shared += 1
             }
-            guard shared > 0 else { continue }
+            // Omit only complete groups: date, then hour+minute, then seconds.
+            // Never remove a partial date or leave minutes without their hour.
+            guard shared >= 3 else { continue }
+            if shared == 4 { shared = 3 }
             if shared == first.components.count {
                 // Only the fraction varies: preserve its exact digits. Identical
                 // timestamps still show a useful clock time instead of a blank cell.
@@ -95,15 +98,8 @@ enum JSONLTimestampDisplay {
         func display(dropping shared: Int) -> String {
             let time = components.dropFirst(3).joined(separator: ":") + fraction
             switch shared {
-            case 1:
-                return components[1...2].joined(separator: "-") + (time.isEmpty ? "" : " · " + time)
-            case 2:
-                return String(localized: "Day \(components[2])") + (time.isEmpty ? "" : " · " + time)
             case 3:
                 return time
-            case 4:
-                let seconds = components.count == 6 ? " \(components[5])\(fraction)s" : ""
-                return "\(components[4])m" + seconds
             case 5:
                 return "\(components[5])\(fraction)s"
             case 6:

@@ -13,24 +13,27 @@ final class JSONLTimestampDisplayTests: XCTestCase {
         document.lines.map { document.compactTimestampCells[column.identifier]?[$0.id] ?? column.text(for: $0) }
     }
 
-    func testSharedDateHourMinuteAndSecondAreRemovedAsWholeComponents() throws {
+    func testDateHourMinuteAndSecondsAreRemovedOnlyAsCompleteGroups() throws {
         XCTAssertEqual(displayed(try document(["2026-09-15T17:55:54.699Z", "2026-09-15T18:56:55.827Z"])),
                        ["17:55:54.699", "18:56:55.827"])
         XCTAssertEqual(displayed(try document(["2026-09-15T17:55:54.699Z", "2026-09-15T17:56:55.827Z"])),
-                       ["55m 54.699s", "56m 55.827s"])
+                       ["17:55:54.699", "17:56:55.827"])
+        XCTAssertEqual(displayed(try document(["2026-09-15T17:55:54.699Z", "2026-09-15T18:55:55.827Z"])),
+                       ["17:55:54.699", "18:55:55.827"])
         XCTAssertEqual(displayed(try document(["2026-09-15T17:55:54.699Z", "2026-09-15T17:55:55.827Z"])),
                        ["54.699s", "55.827s"])
         XCTAssertEqual(displayed(try document(["2026-09-15T17:55:54.699Z", "2026-09-15T17:55:54.827Z"])),
                        [".699s", ".827s"])
     }
 
-    func testCalendarBoundariesKeepTheFirstVaryingComponentAndEverythingAfterIt() throws {
-        XCTAssertEqual(displayed(try document(["2026-09-15T23:59:59Z", "2026-09-16T00:00:00Z"])),
-                       ["Day 15 · 23:59:59", "Day 16 · 00:00:00"])
-        XCTAssertEqual(displayed(try document(["2026-09-30T23:59:59Z", "2026-10-01T00:00:00Z"])),
-                       ["09-30 · 23:59:59", "10-01 · 00:00:00"])
-        let differentYears = ["2025-12-31T23:59:59Z", "2026-01-01T00:00:00Z"]
-        XCTAssertEqual(displayed(try document(differentYears)), differentYears)
+    func testAnyDateDifferenceRetainsTheEntireDate() throws {
+        for timestamps in [
+            ["2026-09-15T23:59:59Z", "2026-09-16T00:00:00Z"],
+            ["2026-09-30T23:59:59Z", "2026-10-01T00:00:00Z"],
+            ["2025-12-31T23:59:59Z", "2026-01-01T00:00:00Z"],
+        ] {
+            XCTAssertEqual(displayed(try document(timestamps)), timestamps)
+        }
     }
 
     func testDifferentOffsetsRetainFullTimestampsIncludingRepeatedDSTClockTimes() throws {
@@ -55,8 +58,8 @@ final class JSONLTimestampDisplayTests: XCTestCase {
     }
 
     func testDateOnlyAndMinutePrecisionAreSupportedButMixedPrecisionStaysRaw() throws {
-        XCTAssertEqual(displayed(try document(["2026-09-15", "2026-09-16"])), ["Day 15", "Day 16"])
-        XCTAssertEqual(displayed(try document(["2026-09-15 17:55", "2026-09-15 17:56"])), ["55m", "56m"])
+        XCTAssertEqual(displayed(try document(["2026-09-15", "2026-09-16"])), ["2026-09-15", "2026-09-16"])
+        XCTAssertEqual(displayed(try document(["2026-09-15 17:55", "2026-09-15 17:56"])), ["17:55", "17:56"])
         let mixed = ["2026-09-15", "2026-09-15T17:55:54Z"]
         XCTAssertEqual(displayed(try document(mixed)), mixed)
     }
@@ -75,11 +78,11 @@ final class JSONLTimestampDisplayTests: XCTestCase {
     }
 
     func testFormattingUsesTheFullDocumentAndKeepsInspectorAndSearchSourcesRaw() throws {
-        let timestamps = ["2026-09-15T17:55:54.699Z", "2026-09-16T17:55:55.827Z"]
+        let timestamps = ["2026-09-15T17:55:54.699Z", "2026-09-15T17:56:55.827Z"]
         let doc = try document(timestamps)
-        let filtered = doc.lines.filter { $0.rawJSON.contains("2026-09-15") }
+        let filtered = doc.lines.filter { $0.rawJSON.contains("17:55") }
         let line = try XCTUnwrap(filtered.first)
-        XCTAssertEqual(doc.compactTimestampCells[JSONLTableColumn.field("timestamp").identifier]?[line.id], "Day 15 · 17:55:54.699")
+        XCTAssertEqual(doc.compactTimestampCells[JSONLTableColumn.field("timestamp").identifier]?[line.id], "17:55:54.699")
         XCTAssertEqual(JSONLTableColumn.field("timestamp").text(for: line), timestamps[0])
         guard case .object(let fields) = line.parsed else { return XCTFail("Expected inspector object") }
         XCTAssertEqual(fields.first { $0.key == "timestamp" }?.value, .string(timestamps[0]))
