@@ -41,6 +41,7 @@ final class GladeViewModel: Identifiable {
     var errorMessage: String?
     var showFileImporter = false
     var searchText: String = ""
+    var inspectorSearchText: String = ""
     var showJumpToLine: Bool = false
     var exportCopied: Bool = false
 

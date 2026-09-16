@@ -30,6 +30,7 @@
 		AA000023 /* UpdateSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA100023 /* UpdateSettingsView.swift */; };
 		AA000024 /* Sparkle in Frameworks */ = {isa = PBXBuildFile; productRef = AA900002 /* Sparkle */; };
 		AA000025 /* JSONLColumnOrdering.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA100025 /* JSONLColumnOrdering.swift */; };
+		AA000026 /* JSONLineSearch.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA100026 /* JSONLineSearch.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -57,6 +58,7 @@
 		AA100022 /* UpdateChannel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UpdateChannel.swift; sourceTree = "<group>"; };
 		AA100023 /* UpdateSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UpdateSettingsView.swift; sourceTree = "<group>"; };
 		AA100025 /* JSONLColumnOrdering.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JSONLColumnOrdering.swift; sourceTree = "<group>"; };
+		AA100026 /* JSONLineSearch.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JSONLineSearch.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -120,6 +122,7 @@
 				AA100004 /* JSONLLine.swift */,
 				AA100005 /* JSONLDocument.swift */,
 				AA100025 /* JSONLColumnOrdering.swift */,
+				AA100026 /* JSONLineSearch.swift */,
 				AA100016 /* MarkdownHeading.swift */,
 				AA100017 /* MarkdownDocument.swift */,
 			);
@@ -250,6 +253,7 @@
 				AA000022 /* UpdateChannel.swift in Sources */,
 				AA000023 /* UpdateSettingsView.swift in Sources */,
 				AA000025 /* JSONLColumnOrdering.swift in Sources */,
+				AA000026 /* JSONLineSearch.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

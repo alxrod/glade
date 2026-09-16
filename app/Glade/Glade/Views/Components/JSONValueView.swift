@@ -7,25 +7,10 @@ import SwiftUI
 func highlightedAttributedString(_ text: String, query: String) -> AttributedString {
     var attributed = AttributedString(text)
 
-    let trimmed = query.trimmingCharacters(in: .whitespaces)
-    guard !trimmed.isEmpty else { return attributed }
-
-    let lowerText = text.lowercased()
-    let lowerQuery = trimmed.lowercased()
-    var stringSearchStart = lowerText.startIndex
-
-    while stringSearchStart < lowerText.endIndex,
-          let stringRange = lowerText.range(of: lowerQuery, range: stringSearchStart..<lowerText.endIndex) {
-        // Convert String.Index range to AttributedString range
-        let startOffset = lowerText.distance(from: lowerText.startIndex, to: stringRange.lowerBound)
-        let endOffset = lowerText.distance(from: lowerText.startIndex, to: stringRange.upperBound)
-
-        let attrStart = attributed.index(attributed.startIndex, offsetByCharacters: startOffset)
-        let attrEnd = attributed.index(attributed.startIndex, offsetByCharacters: endOffset)
-        let attrRange = attrStart..<attrEnd
-
-        attributed[attrRange].backgroundColor = .init(.yellow.opacity(0.6))
-        stringSearchStart = stringRange.upperBound
+    for stringRange in JSONLineSearch.ranges(in: text, query: query) {
+        if let range = Range(stringRange, in: attributed) {
+            attributed[range].backgroundColor = .init(.yellow.opacity(0.6))
+        }
     }
 
     return attributed
@@ -89,7 +74,8 @@ extension Color {
 struct JSONValueView: View {
     let value: JSONValue
     let indentLevel: Int
-    var searchText: String = ""
+    let search: JSONLineSearch
+    var path: [Int] = []
     var contextKey: String?
     @State private var isExpanded: Bool = true
 
@@ -102,23 +88,23 @@ struct JSONValueView: View {
         case .array(let arr):
             arrayView(arr: arr)
         case .string(let str):
-            highlightedText("\"\(str)\"", query: searchText)
+            highlightedText("\"\(str)\"", query: search.query)
                 .foregroundColor(.jsonString2)
                 .textSelection(.enabled)
                 .fixedSize(horizontal: false, vertical: true)
                 .contextMenu { primitiveMenu(displayValue: str) }
         case .number:
-            highlightedText(value.displayString, query: searchText)
+            highlightedText(value.displayString, query: search.query)
                 .foregroundColor(.jsonNumber)
                 .textSelection(.enabled)
                 .contextMenu { primitiveMenu(displayValue: rawValue(value)) }
         case .bool(let flag):
-            highlightedText(flag ? "true" : "false", query: searchText)
+            highlightedText(flag ? "true" : "false", query: search.query)
                 .foregroundColor(.jsonBool)
                 .textSelection(.enabled)
                 .contextMenu { primitiveMenu(displayValue: flag ? "true" : "false") }
         case .null:
-            highlightedText("null", query: searchText)
+            highlightedText("null", query: search.query)
                 .foregroundColor(.secondary)
                 .italic()
                 .contextMenu { primitiveMenu(displayValue: "null") }
@@ -162,12 +148,13 @@ struct JSONValueView: View {
             collapseToggle("{ \(pairs.count) \(pairs.count == 1 ? "key" : "keys") }")
             if isExpanded {
                 VStack(alignment: .leading, spacing: 2) {
-                    ForEach(Array(pairs.enumerated()), id: \.offset) { _, kv in
+                    ForEach(Array(pairs.enumerated()).filter { search.includes(path + [$0.offset]) }, id: \.offset) { index, kv in
                         KeyValueRowView(
                             key: kv.key,
                             value: kv.value,
                             indentLevel: indentLevel + 1,
-                            searchText: searchText
+                            search: search,
+                            path: path + [index]
                         )
                     }
                 }
@@ -182,13 +169,13 @@ struct JSONValueView: View {
             collapseToggle("[ \(arr.count) \(arr.count == 1 ? "item" : "items") ]")
             if isExpanded {
                 VStack(alignment: .leading, spacing: 2) {
-                    ForEach(Array(arr.enumerated()), id: \.offset) { index, item in
+                    ForEach(Array(arr.enumerated()).filter { search.includes(path + [$0.offset]) }, id: \.offset) { index, item in
                         HStack(alignment: .top, spacing: 6) {
                             Text(verbatim: "[\(index)]")
                                 .foregroundColor(.secondary)
                                 .font(.system(.caption, design: .monospaced))
                                 .frame(minWidth: 24, alignment: .trailing)
-                            JSONValueView(value: item, indentLevel: indentLevel + 1, searchText: searchText)
+                            JSONValueView(value: item, indentLevel: indentLevel + 1, search: search, path: path + [index])
                         }
                     }
                 }
@@ -205,25 +192,26 @@ struct KeyValueRowView: View {
     let key: String
     let value: JSONValue
     let indentLevel: Int
-    var searchText: String = ""
+    let search: JSONLineSearch
+    var path: [Int] = []
 
     var body: some View {
         VStack(alignment: .leading, spacing: 1) {
             switch value {
             case .object, .array:
                 VStack(alignment: .leading, spacing: 2) {
-                    highlightedText(key, query: searchText)
+                    highlightedText(key, query: search.query)
                         .font(.system(.body, design: .monospaced).bold())
                         .foregroundColor(.primary)
-                    JSONValueView(value: value, indentLevel: indentLevel, searchText: searchText, contextKey: key)
+                    JSONValueView(value: value, indentLevel: indentLevel, search: search, path: path, contextKey: key)
                 }
             default:
                 HStack(alignment: .top, spacing: 8) {
-                    highlightedText(key, query: searchText)
+                    highlightedText(key, query: search.query)
                         .font(.system(.body, design: .monospaced).bold())
                         .foregroundColor(.primary)
                         .fixedSize(horizontal: false, vertical: true)
-                    JSONValueView(value: value, indentLevel: indentLevel, searchText: searchText, contextKey: key)
+                    JSONValueView(value: value, indentLevel: indentLevel, search: search, path: path, contextKey: key)
                 }
                 .contextMenu {
                     Button("Copy Value") {

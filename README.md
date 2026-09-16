@@ -14,6 +14,8 @@ Columns are ranked when a document opens: timestamp first, then readable prose (
 
 Search filters records without changing the table's columns. Markdown files have a rendered view and a searchable outline beneath the file list. Both formats support editing, saving, drag and drop, and zoom. Each macOS Space can have its own workspace.
 
+Use **Search this line** at the top of the inspector to search that record independently. Matches are highlighted and counted; unrelated fields are hidden while parent keys and original array indices remain visible. Matching a container key reveals its full value. Clear the search (or press Escape in the field) to restore the full record. The inspector query stays with each file as you select different rows.
+
 ## Build
 
 Requires macOS 14 or later and Xcode with the macOS SDK.

@@ -197,7 +197,7 @@ struct TabbedRootView: View {
                     zoomedContent {
                         DetailView(
                             line: tab.selectedLine,
-                            searchText: tab.searchText,
+                            searchText: Binding(get: { tab.inspectorSearchText }, set: { tab.inspectorSearchText = $0 }),
                             onClose: { tab.isInspectorPresented = false }
                         )
                     }
@@ -372,7 +372,9 @@ struct TabbedRootView: View {
         } else {
             switch tab.fileType {
             case .jsonl:
-                DetailView(line: tab.selectedLine, searchText: tab.searchText)
+                DetailView(line: tab.selectedLine, searchText: Binding(
+                    get: { tab.inspectorSearchText }, set: { tab.inspectorSearchText = $0 }
+                ))
             case .markdown:
                 if let mdDoc = tab.markdownDocument {
                     MarkdownDetailView(
