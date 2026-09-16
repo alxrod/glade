@@ -39,6 +39,8 @@ struct FileAliasTitleView: View {
                 if let url = tab.fileURL { tab.fileMetadata.setAlias("", for: url) }
             }
         )
+        .fixedSize(horizontal: true, vertical: false)
+        .padding(.trailing, 12)
         .modifier(FileAliasPrompt(tab: tab, alias: $alias, isPresented: $isPresented))
     }
 }
@@ -84,7 +86,7 @@ private struct FileTitleLabelView: NSViewRepresentable {
 
     func sizeThatFits(_ proposal: ProposedViewSize, nsView: FileTitleLabel, context: Context) -> CGSize? {
         let size = nsView.intrinsicContentSize
-        return CGSize(width: min(proposal.width ?? 360, min(360, size.width)), height: size.height)
+        return CGSize(width: min(proposal.width ?? 360, min(360, ceil(size.width) + 2)), height: ceil(size.height))
     }
 }
 
