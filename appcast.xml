@@ -1,9 +1,18 @@
-<?xml version="1.0" encoding="utf-8"?>
-<rss version="2.0" xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle">
+<?xml version='1.0' encoding='utf-8'?>
+<rss xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle" version="2.0">
   <channel>
     <title>Glade Updates</title>
     <link>https://github.com/alxrod/glade</link>
     <description>Updates for Glade, a macOS JSONL and Markdown workspace.</description>
     <language>en</language>
+    <item>
+      <title>Glade 1.0.0</title>
+      <pubDate>Wed, 16 Sep 2026 04:30:01 +0000</pubDate>
+      <sparkle:version>2</sparkle:version>
+      <sparkle:shortVersionString>1.0.0</sparkle:shortVersionString>
+      <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
+      <description>&lt;h2&gt;Glade’s first stable release&lt;/h2&gt;&lt;ul&gt;&lt;li&gt;Browse files in the sidebar, scan records in a spreadsheet, and double-click a row to inspect its full JSON.&lt;/li&gt;&lt;li&gt;Find text across records or within one line. Submit searches with Return, combine column contains/equals filters, and save reusable queries for matching schemas.&lt;/li&gt;&lt;li&gt;Keep your column order, widths, and hidden fields across files with the same keys. Timestamp previews omit shared components while the inspector preserves the original value.&lt;/li&gt;&lt;li&gt;Give files local nicknames, select multiple rows, apply color tags, and filter to tagged records. Tags return when you reopen the file.&lt;/li&gt;&lt;li&gt;Scroll with reusable native table cells and cached row previews, with a simplified toolbar for copying and inspection.&lt;/li&gt;&lt;li&gt;Read Markdown with heading navigation and receive signed automatic updates through release, beta, or alpha channels.&lt;/li&gt;&lt;/ul&gt;</description>
+      <enclosure url="https://github.com/alxrod/glade/releases/download/v1.0.0/Glade-1.0.0.dmg" length="4486833" type="application/octet-stream" sparkle:edSignature="auUL9uemlEagZzOtWVun0gC1yNl6KdKEgrjw7EnAwh3kSfoM4UaueOXnSv3+33HmIdC0tsC3+jxs2UtXg8OECg==" />
+    </item>
   </channel>
 </rss>
